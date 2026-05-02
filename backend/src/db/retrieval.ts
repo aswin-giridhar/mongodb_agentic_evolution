@@ -74,7 +74,9 @@ export async function retrieve(
 
   const resolved_entities: EntityId[] = neighbourDoc?.entitySet ?? [seedService]
 
-  // 2. + 3. Parallel vector searches
+  // 2. + 3. Parallel vector searches.
+  // $project drops the 1024-dim embedding array — agents don't need it
+  // and including it blows up the MCP response size (>100KB per read).
   const [wcResults, artifactResults] = await Promise.all([
     workingContext
       .aggregate<WorkingContextEntry>([
@@ -91,6 +93,7 @@ export async function retrieve(
             },
           },
         },
+        { $project: { embedding: 0 } },
       ])
       .toArray(),
     artifacts
@@ -105,6 +108,7 @@ export async function retrieve(
             filter: { refs: { $in: resolved_entities } },
           },
         },
+        { $project: { embedding: 0 } },
       ])
       .toArray(),
   ])
