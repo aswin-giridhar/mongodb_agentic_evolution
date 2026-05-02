@@ -1,7 +1,8 @@
 import { randomUUID } from "crypto"
 import cors from "cors"
-import express from "express"
+import express, { type Request, type Response } from "express"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js"
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js"
 import { connect, disconnect } from "./db/client.js"
 import { env } from "./lib/env.js"
 import { getSeed } from "./api/seed.js"
@@ -52,24 +53,55 @@ async function main(): Promise<void> {
     }
   })
 
-  // MCP HTTP transports — one per agent identity
-  const transports = new Map<Agent, StreamableHTTPServerTransport>()
+  // MCP HTTP transports — keyed by session id, per-agent.
+  // Each MCP client (one per Claude Code instance) gets its own
+  // Server + Transport pair on first initialize. Session id flows
+  // back to the client via the Mcp-Session-Id response header and
+  // is sent on every subsequent request.
+  const transports: Record<string, StreamableHTTPServerTransport> = {}
+  const mcpJson = express.json({ limit: "4mb" })
 
-  for (const agent of ["producer", "consumer"] as Agent[]) {
-    const server = buildMcpServer(agent)
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-    })
-    await server.connect(transport)
-    transports.set(agent, transport)
+  async function handleMcp(agent: Agent, req: Request, res: Response): Promise<void> {
+    const sessionId = (req.headers["mcp-session-id"] as string | undefined) ?? undefined
+    let transport: StreamableHTTPServerTransport
+
+    if (sessionId && transports[sessionId]) {
+      transport = transports[sessionId]
+    } else if (!sessionId && req.method === "POST" && isInitializeRequest(req.body)) {
+      // Spin up a fresh Server + Transport for this client
+      transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        onsessioninitialized: (id) => {
+          transports[id] = transport
+          console.log(`[mcp:${agent}] session ${id} opened`)
+        },
+      })
+      transport.onclose = () => {
+        const id = transport.sessionId
+        if (id && transports[id]) {
+          delete transports[id]
+          console.log(`[mcp:${agent}] session ${id} closed`)
+        }
+      }
+      const server = buildMcpServer(agent)
+      await server.connect(transport)
+    } else {
+      // Reject without OAuth-shaped error so the client doesn't try to register.
+      res.status(400).json({
+        jsonrpc: "2.0",
+        error: { code: -32600, message: "Bad Request: No valid session ID" },
+        id: null,
+      })
+      return
+    }
+
+    await transport.handleRequest(req, res, req.body)
   }
 
-  const mcpJson = express.json({ limit: "4mb" })
   for (const agent of ["producer", "consumer"] as Agent[]) {
-    const transport = transports.get(agent)!
     app.all(`/mcp/${agent}`, mcpJson, async (req, res) => {
       try {
-        await transport.handleRequest(req, res, req.body)
+        await handleMcp(agent, req, res)
       } catch (err) {
         console.error(`MCP ${agent} request failed:`, err)
         if (!res.headersSent) {
