@@ -1,70 +1,129 @@
 {
   "services": [
     {
-      "id": "auth",
-      "name": "auth",
+      "id": "auth-service",
+      "name": "auth-service",
       "owner_team": "platform",
       "depends_on": [],
       "consumed_by": ["payments-api", "mobile-app"],
-      "hot_files": ["src/jwt.ts", "src/middleware.ts"]
+      "hot_files": [
+        "src/jwt.ts",
+        "src/middleware/verify.ts",
+        "src/sessions.ts"
+      ]
     },
     {
       "id": "payments-api",
       "name": "payments-api",
-      "owner_team": "payments",
-      "depends_on": ["auth", "redis"],
-      "consumed_by": ["mobile-app", "admin"],
-      "hot_files": ["src/routes/checkout.ts", "src/routes/refund.ts"]
+      "owner_team": "platform",
+      "depends_on": ["auth-service"],
+      "consumed_by": ["mobile-app", "admin-dashboard"],
+      "hot_files": [
+        "src/routes/checkout.ts",
+        "src/routes/orders.ts",
+        "src/lib/limiter.ts",
+        "src/db/transactions.ts"
+      ]
+    },
+    {
+      "id": "notification-service",
+      "name": "notification-service",
+      "owner_team": "platform",
+      "depends_on": [],
+      "consumed_by": ["payments-api", "mobile-app"],
+      "hot_files": [
+        "src/dispatcher.ts",
+        "src/templates/order.ts"
+      ]
     },
     {
       "id": "mobile-app",
       "name": "mobile-app",
       "owner_team": "mobile",
-      "depends_on": ["payments-api", "auth"],
+      "depends_on": [
+        "payments-api",
+        "auth-service",
+        "search-api",
+        "notification-service"
+      ],
       "consumed_by": [],
-      "hot_files": ["src/checkout/CheckoutForm.tsx", "src/api/payments.ts"]
+      "hot_files": [
+        "app/screens/Checkout.tsx",
+        "app/api/orders.ts",
+        "app/api/auth.ts"
+      ]
     },
     {
-      "id": "inventory",
-      "name": "inventory",
+      "id": "admin-dashboard",
+      "name": "admin-dashboard",
+      "owner_team": "growth",
+      "depends_on": ["payments-api"],
+      "consumed_by": [],
+      "hot_files": [
+        "pages/orders.tsx",
+        "lib/analytics.ts"
+      ]
+    },
+    {
+      "id": "search-api",
+      "name": "search-api",
       "owner_team": "platform",
-      "depends_on": ["redis"],
-      "consumed_by": ["payments-api", "admin"],
-      "hot_files": ["src/stock.ts", "src/reservations.ts"]
+      "depends_on": [],
+      "consumed_by": ["mobile-app"],
+      "hot_files": [
+        "src/index.ts",
+        "src/ranking.ts"
+      ]
     }
   ],
   "people": [
-    {
-      "id": "sarah",
-      "name": "Sarah",
-      "team": "platform",
-      "role": "lead",
-      "expertise": ["infrastructure", "deployments", "code review", "security"],
-      "handle": "@sarah"
-    },
     {
       "id": "marcus",
       "name": "Marcus",
       "team": "platform",
       "role": "engineer",
-      "expertise": ["redis", "rate-limiting", "performance", "caching"],
+      "expertise": ["redis", "rate-limiting", "caching"],
       "handle": "@marcus"
     },
     {
-      "id": "alex",
-      "name": "Alex",
-      "team": "payments",
+      "id": "elena",
+      "name": "Elena",
+      "team": "platform",
       "role": "lead",
-      "expertise": ["API design", "payment flows", "transactions", "idempotency"],
-      "handle": "@alex"
+      "expertise": ["postgres", "transactions", "auth", "security"],
+      "handle": "@elena"
     },
     {
-      "id": "jin",
-      "name": "Jin",
+      "id": "priya",
+      "name": "Priya",
       "team": "mobile",
       "role": "engineer",
-      "expertise": ["React", "mobile checkout", "state management", "hooks"],
-      "handle": "@jin"
+      "expertise": ["react-native", "checkout-flow", "hooks"],
+      "handle": "@priya"
+    },
+    {
+      "id": "raj",
+      "name": "Raj",
+      "team": "mobile",
+      "role": "engineer",
+      "expertise": ["graphql", "api-clients"],
+      "handle": "@raj"
+    },
+    {
+      "id": "sara",
+      "name": "Sara",
+      "team": "growth",
+      "role": "lead",
+      "expertise": ["analytics", "experimentation"],
+      "handle": "@sara"
+    },
+    {
+      "id": "james",
+      "name": "James",
+      "team": "growth",
+      "role": "engineer",
+      "expertise": ["dashboards", "reporting"],
+      "handle": "@james"
     }
   ],
   "channels": ["platform", "payments", "mobile", "incidents", "random"],
@@ -78,55 +137,91 @@
       "slack_age_weeks": 6,
       "pr_id": "1247",
       "pr_title": "Replace express-rate-limit with redis-backed limiter",
-      "pr_files": ["lib/limiter.ts", "services/payments-api/src/routes/checkout.ts"],
-      "keywords": ["rate limit", "memory leak", "express-rate-limit", "lib/limiter", "redis"]
+      "pr_files": [
+        "lib/limiter.ts",
+        "services/payments-api/src/routes/checkout.ts"
+      ],
+      "keywords": [
+        "rate limit",
+        "memory leak",
+        "express-rate-limit",
+        "lib/limiter",
+        "redis"
+      ]
     },
     {
       "id": "R2",
       "rule": "Payments API responses use tx_id field, not transactionId",
       "reason": "naming convention consistency across services",
       "slack_channel": "payments",
-      "slack_author": "alex",
+      "slack_author": "elena",
       "slack_age_weeks": 3,
       "pr_id": "1289",
       "pr_title": "Standardize transaction ID field to tx_id",
-      "pr_files": ["services/payments-api/src/routes/checkout.ts", "services/mobile-app/src/api/payments.ts"],
-      "keywords": ["tx_id", "transactionId", "naming convention", "API"]
+      "pr_files": [
+        "services/payments-api/src/routes/checkout.ts",
+        "services/mobile-app/app/api/orders.ts"
+      ],
+      "keywords": [
+        "tx_id",
+        "transactionId",
+        "naming convention",
+        "API",
+        "transaction"
+      ]
     },
     {
       "id": "R3",
       "rule": "Mobile checkout uses useCheckout hook, not raw fetch",
       "reason": "consolidated state management and error handling",
       "slack_channel": "mobile",
-      "slack_author": "jin",
+      "slack_author": "priya",
       "slack_age_weeks": 8,
       "pr_id": "1102",
       "pr_title": "Extract checkout logic into useCheckout hook",
-      "pr_files": ["services/mobile-app/src/hooks/useCheckout.ts", "services/mobile-app/src/checkout/CheckoutForm.tsx"],
-      "keywords": ["useCheckout", "hook", "fetch", "checkout", "mobile"]
+      "pr_files": [
+        "services/mobile-app/app/hooks/useCheckout.ts",
+        "services/mobile-app/app/screens/Checkout.tsx"
+      ],
+      "keywords": [
+        "useCheckout",
+        "hook",
+        "fetch",
+        "checkout",
+        "mobile"
+      ]
     },
     {
       "id": "R4",
       "rule": "Auth middleware runs before logging middleware",
       "reason": "security: don't log unauthenticated requests",
       "slack_channel": "platform",
-      "slack_author": "sarah",
+      "slack_author": "elena",
       "slack_age_weeks": 16,
       "pr_id": "998",
       "pr_title": "Reorder middleware: auth before logging",
-      "pr_files": ["services/auth/src/middleware.ts", "lib/middleware.ts"],
-      "keywords": ["auth", "logging", "middleware", "security", "order"]
+      "pr_files": [
+        "services/auth-service/src/middleware/verify.ts",
+        "lib/middleware.ts"
+      ],
+      "keywords": [
+        "auth",
+        "logging",
+        "middleware",
+        "security",
+        "order"
+      ]
     }
   ],
   "story_arcs": [
     "Six weeks ago: Rate-limit incident caused checkout downtime for 20 minutes. Marcus investigated and found express-rate-limit was leaking memory under load. He wrote lib/limiter.ts (redis-backed) as replacement. Team agreed to deprecate express-rate-limit across all services. (Establishes R1.)",
-    "Three weeks ago: Cross-team alignment meeting where Alex pushed for tx_id naming convention. The mobile app was using transactionId while payments-api used tx_id. Alex made the case for consistency. Jin agreed to update mobile app. (R2.)",
-    "Two months ago: Mobile team was having issues with checkout state management. Multiple components were duplicating fetch logic. Jin consolidated everything into useCheckout hook. Marcus reviewed and approved. (R3.)",
-    "Four months ago: Security review caught that logging middleware was running before auth middleware, causing unauthenticated requests to be logged. Sarah flagged this as a security issue and led the fix. (R4.)",
-    "Last week: Open question on #payments about whether to add idempotency keys to refund endpoint. Alex is for it, Marcus concerned about redis load. Discussion ongoing.",
-    "Two weeks ago: Incident where inventory service went down, affecting checkout. Sarah led postmortem. Result: better circuit breaker patterns needed.",
+    "Three weeks ago: Cross-team alignment meeting where Elena pushed for tx_id naming convention. The mobile app was using transactionId while payments-api used tx_id. Elena made the case for consistency. Priya agreed to update the mobile app. (R2.)",
+    "Two months ago: Mobile team was having issues with checkout state management. Multiple components were duplicating fetch logic. Priya consolidated everything into useCheckout hook. Marcus reviewed and approved. (R3.)",
+    "Four months ago: Security review caught that logging middleware was running before auth middleware, causing unauthenticated requests to be logged. Elena flagged this as a security issue and led the fix. (R4.)",
+    "Last week: Open question on #payments about whether to add idempotency keys to refund endpoint. Elena is for it, Marcus concerned about redis load. Discussion ongoing.",
+    "Two weeks ago: Incident where notification-service v1 went down, affecting payments and mobile. Elena led the postmortem. Result: better circuit breaker patterns needed before v2 batch dispatcher migration.",
     "Five weeks ago: Marcus optimized redis connection pooling. Noticed checkout latency improved by 15%.",
-    "Yesterday: Jin shared mobile checkout UX improvements in #random. Team celebrated 99.9% checkout success rate for the week."
+    "Yesterday: Priya shared mobile checkout UX improvements in #random. Sara and James celebrated 99.9% checkout success rate for the week."
   ],
   "company": {
     "name": "Acme Robotics",

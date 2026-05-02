@@ -123,9 +123,23 @@ export async function retrieve(
     .slice(0, limit)
     .map((x) => x.entry)
 
+  // Rerank artifacts — vector position + a small boost for curated artifacts
+  // (the FE-aligned ones in dataset/seed-data/curated-artifacts.json) so they
+  // win ties against auto-generated noise during the demo.
+  const scoreArtifact = (a: Artifact, idx: number): number => {
+    const vectorScore = 1 - idx / (artifactResults.length || 1)
+    const curatedBoost = a.metadata?.curated === true ? 0.15 : 0
+    return vectorScore + curatedBoost
+  }
+  const rerankedArtifacts = [...artifactResults]
+    .map((a, i) => ({ artifact: a, score: scoreArtifact(a, i) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((x) => x.artifact)
+
   return {
     entries: rerankedEntries,
-    grounding: artifactResults.slice(0, limit),
+    grounding: rerankedArtifacts,
     resolved_entities,
   }
 }

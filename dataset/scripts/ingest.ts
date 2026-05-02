@@ -53,12 +53,22 @@ async function ingest(options: IngestOptions = {}) {
   const jira = JSON.parse(readFileSync('./seed-data/jira.json', 'utf-8')) as JiraTicket[];
   const docs = JSON.parse(readFileSync('./seed-data/docs.json', 'utf-8')) as Doc[];
   const code = JSON.parse(readFileSync('./seed-data/code.json', 'utf-8')) as CodeChunk[];
+  // Curated artifacts whose IDs match the FE's hardcoded position map.
+  // These are inserted with metadata.curated=true and pre-set refs (so we
+  // don't clobber them with keyword extraction).
+  const curated = JSON.parse(
+    readFileSync('./seed-data/curated-artifacts.json', 'utf-8')
+  ) as Array<Omit<Artifact, 'created_at' | 'metadata'> & {
+    created_at: string;
+    metadata?: Record<string, unknown>;
+  }>;
 
   console.log(`  ✓ ${slack.length} Slack messages`);
   console.log(`  ✓ ${prs.length} Pull Requests`);
   console.log(`  ✓ ${jira.length} Jira tickets`);
   console.log(`  ✓ ${docs.length} Documents`);
-  console.log(`  ✓ ${code.length} Code chunks\n`);
+  console.log(`  ✓ ${code.length} Code chunks`);
+  console.log(`  ✓ ${curated.length} Curated artifacts (FE-aligned IDs)\n`);
 
   // Connect to MongoDB
   let client: MongoClient | null = null;
@@ -175,11 +185,31 @@ async function ingest(options: IngestOptions = {}) {
       });
     }
 
-    console.log(`  ✓ ${artifacts.length} artifacts created\n`);
+    // Add curated artifacts last so we can mark them and skip ref-clobbering.
+    // Their IDs match the FE's ARTIFACT_POSITIONS map exactly so they render
+    // at curated positions in the Grounded view.
+    const curatedIds = new Set<string>();
+    for (const c of curated) {
+      curatedIds.add(c._id);
+      artifacts.push({
+        _id: c._id,
+        source: c.source,
+        channel: c.channel,
+        author: c.author,
+        content: c.content,
+        preview: c.preview,
+        refs: c.refs,
+        metadata: { ...(c.metadata ?? {}), curated: true },
+        created_at: new Date(c.created_at).getTime(),
+      });
+    }
 
-    // Step 3: Tag refs
+    console.log(`  ✓ ${artifacts.length} artifacts created (${curatedIds.size} curated)\n`);
+
+    // Step 3: Tag refs (skip curated — their refs are explicit)
     console.log('🏷️  Tagging entity references...');
     for (const artifact of artifacts) {
+      if (curatedIds.has(artifact._id)) continue;
       artifact.refs = extractRefs(artifact.content, spec.services, spec.people);
     }
     console.log(`  ✓ References tagged\n`);

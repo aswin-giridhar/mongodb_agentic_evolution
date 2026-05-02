@@ -11,6 +11,7 @@
     "generate:docs": "node dist/scripts/gen-docs.js",
     "generate:code": "node dist/scripts/gen-code.js",
     "generate:all": "npm run generate:slack && npm run generate:prs && npm run generate:jira && npm run generate:docs && npm run generate:code",
+    "create-indexes": "node dist/scripts/create-indexes.js",
     "ingest": "node dist/scripts/ingest.js",
     "ingest:dry": "node dist/scripts/ingest.js --dry-run",
     "reset": "node dist/scripts/reset-demo.js"
