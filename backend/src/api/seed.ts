@@ -1,56 +1,52 @@
 import type { Request, Response } from "express"
 import { collections } from "../db/client.js"
-import type { FileNode } from "../lib/types.js"
+import {
+  toFEArtifact,
+  type ArtifactFE,
+  type PersonFE,
+  type ServiceFE,
+} from "../lib/types.js"
 
 /**
- * GET /api/seed
- * Returns the static structural graph (services, files, people)
- * that the dashboard renders before any agent activity.
+ * Build the seed payload sent to the FE on SSE connect.
+ *
+ * Shape matches the FE's `kind: "seed"` event:
+ *   { services, people, artifacts }
+ *
+ * Stamps `type: "service" | "person"` discriminators so the FE
+ * union narrowing works directly.
  */
-export async function getSeed(_req: Request, res: Response): Promise<void> {
-  const { services, people } = collections()
-  const [servicesList, peopleList] = await Promise.all([
+export async function buildSeedPayload(): Promise<{
+  services: ServiceFE[]
+  people: PersonFE[]
+  artifacts: ArtifactFE[]
+}> {
+  const { services, people, artifacts } = collections()
+  const [s, p, a] = await Promise.all([
     services.find({}).toArray(),
     people.find({}).toArray(),
+    // Strip embeddings (heavy) before serializing to FE
+    artifacts.find({}, { projection: { embedding: 0 } }).toArray(),
   ])
 
-  // Derive file nodes from each service's hot_files
-  const files: FileNode[] = servicesList.flatMap((s) =>
-    (s.hot_files ?? []).map((path) => ({
-      id: `${s._id}/${path.split("/").pop()}`,
-      service: String(s._id),
-      path,
-    }))
-  )
-
-  // Pre-curated layout — judges need stable node positions.
-  // Top row: services. Right column: people. Files inherit parent.
-  const graph_layout = buildGraphLayout(
-    servicesList.map((s) => String(s._id)),
-    peopleList.map((p) => String(p._id))
-  )
-
-  res.json({
-    services: servicesList,
-    files,
-    people: peopleList,
-    graph_layout,
-  })
+  return {
+    services: s.map((svc) => ({ ...svc, type: "service" as const })),
+    people: p.map((per) => ({
+      ...per,
+      type: "person" as const,
+      expertise_evidence: per.expertise_evidence ?? [],
+    })),
+    artifacts: a
+      .map((art) => toFEArtifact(art as never))
+      .filter((x): x is ArtifactFE => x !== null),
+  }
 }
 
-function buildGraphLayout(
-  serviceIds: string[],
-  personIds: string[]
-): { id: string; x: number; y: number }[] {
-  const layout: { id: string; x: number; y: number }[] = []
-  const SERVICE_Y = 120
-  const SERVICE_X_GAP = 320
-  serviceIds.forEach((id, i) => {
-    layout.push({ id, x: 80 + i * SERVICE_X_GAP, y: SERVICE_Y })
-  })
-  const PERSON_X = 80 + serviceIds.length * SERVICE_X_GAP + 60
-  personIds.forEach((id, i) => {
-    layout.push({ id, x: PERSON_X, y: 80 + i * 120 })
-  })
-  return layout
+/**
+ * GET /api/seed — fallback HTTP endpoint mirroring the SSE seed.
+ * Useful for one-off curl sanity checks; FE doesn't normally call this.
+ */
+export async function getSeed(_req: Request, res: Response): Promise<void> {
+  const payload = await buildSeedPayload()
+  res.json(payload)
 }

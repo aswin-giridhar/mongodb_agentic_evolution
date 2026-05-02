@@ -1,6 +1,6 @@
-import { MongoClient, type Collection, type Db } from "mongodb"
+import { MongoClient, type Db } from "mongodb"
 import { env } from "../lib/env.js"
-import type { Artifact, ClaimEntry, Person, Service, WorkingContextEntry } from "../lib/types.js"
+import type { Artifact, Person, Service, WorkingContextEntry } from "../lib/types.js"
 
 let client: MongoClient | null = null
 let db: Db | null = null
@@ -12,7 +12,6 @@ export async function connect(): Promise<Db> {
   })
   await client.connect()
   db = client.db(env.MONGODB_DB)
-  // sanity ping
   await db.command({ ping: 1 })
   console.log(`[mongo] connected to ${env.MONGODB_DB}`)
   return db
@@ -33,7 +32,7 @@ export function collections() {
     people: db.collection<Person>("people"),
     artifacts: db.collection<Artifact>("artifacts"),
     workingContext: db.collection<WorkingContextEntry>("working_context"),
-    claims: db.collection<ClaimEntry>("claims"),
+    // Note: claims now live in working_context with type=claim — no separate collection.
   }
 }
 

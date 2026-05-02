@@ -3,10 +3,10 @@ import { z } from "zod"
 import { collections } from "../db/client.js"
 import { embedOne } from "../embed/voyage.js"
 import { eventBus } from "../lib/eventBus.js"
+import { toFEWorkingContext } from "../lib/types.js"
 import type {
   Agent,
-  ActivityEvent,
-  ClaimEntry,
+  Artifact,
   EntityId,
   FileId,
   WorkingContextEntry,
@@ -51,64 +51,77 @@ export const ListOpenQuestionsInput = z.object({
   scope: z.string().optional(),
 })
 
-// ---------- Helpers ----------
-
-function activityRow(partial: Omit<ActivityEvent, "id" | "ts" | "refs"> & { refs?: string[] }): ActivityEvent {
-  return {
-    id: `act_${randomUUID().slice(0, 8)}`,
-    ts: Date.now(),
-    refs: partial.refs ?? [],
-    ...partial,
-  }
-}
-
-function emitActivity(ev: ActivityEvent): void {
-  eventBus.emitEvent({ type: "agent.activity", payload: ev })
-}
-
 // ---------- Tool implementations ----------
 
 export async function readContext(
   input: z.infer<typeof ReadContextInput>,
   agent: Agent
-): Promise<{ entries: WorkingContextEntry[]; grounding: import("../lib/types.js").Artifact[] }> {
+): Promise<{ entries: WorkingContextEntry[]; grounding: Artifact[] }> {
   const { query, scope } = input
+
+  // Phase 1: signal pending retrieval — drives the FE read-path animation
+  eventBus.emitEvent({
+    type: "read_context.started",
+    payload: { agent, query, scope },
+  })
+
   const seedEntity: EntityId | FileId = scope ?? (await resolveEntity(query))
   const queryEmbedding = await embedOne(query)
   const result = await retrieve(seedEntity, queryEmbedding)
 
-  // Activity row for the dashboard
-  emitActivity(
-    activityRow({
+  // Phase 2: signal completion with full retrieval shape
+  eventBus.emitEvent({
+    type: "read_context.completed",
+    payload: {
       agent,
-      action: "read_context",
-      scope: seedEntity,
-      resolved_entities: result.resolved_entities,
-      returned_ids: result.entries.map((e) => e._id),
-      summary: `${agent} · read_context · ${seedEntity} · ${result.entries.length} hits${
-        result.grounding.length ? ` (+${result.grounding.length} grounding)` : ""
-      }`,
-      refs: [
-        seedEntity,
-        ...result.resolved_entities,
-        ...result.entries.map((e) => e._id),
-      ],
-    })
-  )
-
-  // Trigger Activity → Grounded transition for each grounding artifact
-  for (const a of result.grounding) {
-    eventBus.emitEvent({
-      type: "artifact.referenced",
-      payload: {
-        artifact_id: a._id,
-        by_agent: agent,
-        scope: seedEntity,
-      },
-    })
-  }
+      query,
+      resolved_entity: seedEntity,
+      traversed_entities: result.resolved_entities,
+      returned_entry_ids: result.entries.map((e) => e._id),
+      returned_artifact_ids: result.grounding.map((a) => a._id),
+    },
+  })
 
   return { entries: result.entries, grounding: result.grounding }
+}
+
+interface WriteWcArgs {
+  type: WorkingContextType
+  content: string
+  agent: Agent
+  scopeOverride?: EntityId | FileId
+  supersedes?: string
+  refs?: string[]
+  /** Skip Bedrock entity resolution (used by claim() which always knows scope). */
+  skipResolve?: boolean
+}
+
+async function writeWcEntry(
+  args: WriteWcArgs
+): Promise<WorkingContextEntry> {
+  const { workingContext } = collections()
+  const entityId =
+    args.scopeOverride ??
+    (args.skipResolve ? "services.unknown" : await resolveEntity(args.content))
+  const embedding = await embedOne(args.content)
+  const now = Date.now()
+  const id = `wc_${randomUUID().slice(0, 8)}`
+
+  const doc: WorkingContextEntry = {
+    _id: id,
+    type: args.type,
+    author: args.agent,
+    scope: { entity_id: entityId },
+    content: args.content,
+    embedding,
+    supersedes: args.supersedes ?? null,
+    superseded_by: null,
+    refs: args.refs ?? [],
+    active: true,
+    created_at: now,
+  }
+  await workingContext.insertOne(doc)
+  return doc
 }
 
 export async function writeContext(
@@ -116,139 +129,102 @@ export async function writeContext(
   agent: Agent
 ): Promise<{ id: string }> {
   const { workingContext } = collections()
-  const entityId = await resolveEntity(input.content)
-  const embedding = await embedOne(input.content)
-  const now = Date.now()
-  const id = `wc_${randomUUID().slice(0, 8)}`
 
-  // Supersede prior entry if requested
+  // Supersede flow: mark the old entry inactive and emit the merged event.
   if (input.supersedes) {
+    const newDoc = await writeWcEntry({
+      type: input.type as WorkingContextType,
+      content: input.content,
+      agent,
+      supersedes: input.supersedes,
+      refs: input.refs,
+    })
     await workingContext.updateOne(
       { _id: input.supersedes },
-      { $set: { active: false, superseded_by: id } }
+      { $set: { active: false, superseded_by: newDoc._id } }
     )
-  }
-
-  const doc: WorkingContextEntry = {
-    _id: id,
-    type: input.type as WorkingContextType,
-    author: agent,
-    scope: { entity_id: entityId },
-    content: input.content,
-    embedding,
-    supersedes: input.supersedes ?? null,
-    superseded_by: null,
-    refs: input.refs ?? [],
-    active: true,
-    created_at: now,
-  }
-  await workingContext.insertOne(doc)
-  // Note: working_context.created event flows from Change Stream; no manual emit here.
-
-  emitActivity(
-    activityRow({
-      agent,
-      action: "write_context",
-      scope: entityId,
-      summary: `${agent} · write_context · ${entityId} · ${input.type}${
-        input.supersedes ? ` (supersedes ${input.supersedes})` : ""
-      }`,
-      refs: [entityId, id, ...(input.refs ?? [])],
+    eventBus.emitEvent({
+      type: "working_context.superseded",
+      payload: {
+        old_id: input.supersedes,
+        new_entry: toFEWorkingContext(newDoc),
+      },
     })
-  )
+    return { id: newDoc._id }
+  }
 
-  return { id }
+  // Plain create.
+  const newDoc = await writeWcEntry({
+    type: input.type as WorkingContextType,
+    content: input.content,
+    agent,
+    refs: input.refs,
+  })
+  eventBus.emitEvent({
+    type:
+      newDoc.type === "claim" ? "claim.activated" : "working_context.created",
+    payload: { entry: toFEWorkingContext(newDoc) },
+  })
+  return { id: newDoc._id }
 }
 
 export async function claim(
   input: z.infer<typeof ClaimInput>,
   agent: Agent
-): Promise<{ claim_id: string; conflicts?: ClaimEntry[] }> {
-  const { claims } = collections()
+): Promise<{ claim_id: string; conflict?: true }> {
+  const { workingContext } = collections()
 
-  // Existing claim on the same scope?
-  const existing = await claims.findOne({
+  // Active claim already on this scope?
+  const existing = await workingContext.findOne({
+    type: "claim",
     "scope.entity_id": input.scope,
     active: true,
   })
 
   if (existing) {
     eventBus.emitEvent({
-      type: "working_context.claim_conflict",
+      type: "claim.conflict",
       payload: {
-        scope: input.scope,
-        attempting_agent: agent,
-        holding_agent: existing.agent,
-        intent: input.intent,
+        attempted_by: agent,
         existing_claim_id: String(existing._id),
+        intent: input.intent,
       },
     })
-    emitActivity(
-      activityRow({
-        agent,
-        action: "claim",
-        scope: input.scope,
-        summary: `${agent} · claim conflict on ${input.scope} (held by ${existing.agent})`,
-        refs: [input.scope, String(existing._id)],
-      })
-    )
-    return {
-      claim_id: String(existing._id),
-      conflicts: [existing as ClaimEntry],
-    }
+    return { claim_id: String(existing._id), conflict: true }
   }
 
-  const id = `cl_${randomUUID().slice(0, 8)}`
-  const doc: ClaimEntry = {
-    _id: id,
-    scope: { entity_id: input.scope },
-    intent: input.intent,
+  const newDoc = await writeWcEntry({
+    type: "claim",
+    content: input.intent,
     agent,
-    active: true,
-    outcome: null,
-    created_at: Date.now(),
-  }
-  await claims.insertOne(doc)
-  // claim_activated flows from Change Stream
-
-  emitActivity(
-    activityRow({
-      agent,
-      action: "claim",
-      scope: input.scope,
-      summary: `${agent} · claim · ${input.scope} — ${input.intent}`,
-      refs: [input.scope, id],
-    })
-  )
-
-  return { claim_id: id }
+    scopeOverride: input.scope,
+  })
+  eventBus.emitEvent({
+    type: "claim.activated",
+    payload: { entry: toFEWorkingContext(newDoc) },
+  })
+  return { claim_id: newDoc._id }
 }
 
 export async function release(
   input: z.infer<typeof ReleaseInput>,
-  agent: Agent
+  _agent: Agent
 ): Promise<{ ok: true }> {
-  const { claims } = collections()
-  await claims.updateOne(
+  const { workingContext } = collections()
+  await workingContext.updateOne(
     { _id: input.claim_id },
-    { $set: { active: false, outcome: input.outcome } }
+    { $set: { active: false } }
   )
-  // claim_released flows from Change Stream
-
-  emitActivity(
-    activityRow({
-      agent,
-      action: "release",
-      summary: `${agent} · release · ${input.claim_id} — ${input.outcome}`,
-      refs: [input.claim_id],
-    })
-  )
+  eventBus.emitEvent({
+    type: "claim.released",
+    payload: { claim_id: input.claim_id, outcome: input.outcome },
+  })
   return { ok: true }
 }
 
 export async function listOpenQuestions(
   input: z.infer<typeof ListOpenQuestionsInput>,
-  agent: Agent
+  _agent: Agent
 ): Promise<{ questions: WorkingContextEntry[] }> {
   const { workingContext } = collections()
   const filter: Record<string, unknown> = {
@@ -258,19 +234,5 @@ export async function listOpenQuestions(
   if (input.scope) filter["scope.entity_id"] = input.scope
 
   const questions = await workingContext.find(filter).limit(20).toArray()
-  emitActivity(
-    activityRow({
-      agent,
-      action: "list_open_questions",
-      scope: input.scope,
-      summary: `${agent} · list_open_questions · ${
-        input.scope ?? "(all)"
-      } · ${questions.length} hits`,
-      refs: [
-        ...(input.scope ? [input.scope] : []),
-        ...questions.map((q) => q._id),
-      ],
-    })
-  )
   return { questions }
 }

@@ -1,4 +1,8 @@
-// Shared types — kept in sync with docs/integration-contract.md §3
+// Shared types — kept in sync with frontend's `src/types.ts` event shape.
+//
+// Internal documents (Mongo) use numeric `created_at` (unix ms).
+// External events (SSE → FE) use ISO-string `created_at`.
+// Convert at the serialization boundary in api/seed.ts and mcp/tools.ts.
 
 export type EntityId = string  // e.g., "services.payments-api"
 export type FileId = string    // e.g., "services.payments-api/checkout.ts"
@@ -11,6 +15,8 @@ export type WorkingContextType =
   | "investigation"
   | "open_question"
 
+// ---------- Internal Mongo documents ----------
+
 export interface Service {
   _id: EntityId
   name: string
@@ -20,18 +26,13 @@ export interface Service {
   hot_files: string[]
 }
 
-export interface FileNode {
-  id: FileId
-  service: EntityId
-  path: string
-}
-
 export interface Person {
   _id: EntityId
   name: string
   team: string
   expertise: string[]
-  handle: string
+  expertise_evidence?: string[]
+  handle?: string
 }
 
 export interface Artifact {
@@ -61,57 +62,130 @@ export interface WorkingContextEntry {
   created_at: number
 }
 
-export interface ClaimEntry {
+// ---------- External (FE-shaped) types ----------
+
+export type ArtifactSourceFE = "slack" | "github" | "jira"
+
+export interface ServiceFE extends Service {
+  type: "service"
+}
+
+export interface PersonFE extends Person {
+  type: "person"
+  expertise_evidence: string[] // never undefined to FE
+}
+
+export interface ArtifactFE {
   _id: string
+  source: ArtifactSourceFE
+  channel?: string
+  content: string
+  refs: EntityId[]
+  created_at: string // ISO
+}
+
+export interface WorkingContextEntryFE {
+  _id: string
+  type: WorkingContextType
+  author: Agent
   scope: { entity_id: EntityId | FileId }
-  intent: string
-  agent: Agent
-  active: boolean
-  outcome: string | null
-  created_at: number
-}
-
-export interface ActivityEvent {
-  id: string
-  ts: number
-  agent?: Agent
-  action:
-    | "read_context"
-    | "write_context"
-    | "claim"
-    | "release"
-    | "list_open_questions"
-    | "ingest"
-    | "reset"
-  scope?: EntityId | FileId
-  resolved_entities?: (EntityId | FileId)[]
-  returned_ids?: string[]
-  summary: string
+  content: string
+  supersedes: string | null
+  superseded_by: string | null
   refs: string[]
+  active: boolean
+  created_at: string // ISO
+  ttl_at?: string
 }
 
-// SSE event payload union — every event the FE consumes
+// ---------- SSE event union (matches FE's SubstrateEvent.kind discriminator) ----------
+
 export type SSEEvent =
-  | { type: "working_context.created"; payload: WorkingContextEntry }
-  | { type: "working_context.superseded"; payload: { id: string; superseded_by: string } }
-  | { type: "working_context.claim_activated"; payload: ClaimEntry }
-  | { type: "working_context.claim_released"; payload: { claim_id: string; outcome: string } }
   | {
-      type: "working_context.claim_conflict"
+      type: "seed"
       payload: {
-        scope: EntityId | FileId
-        attempting_agent: Agent
-        holding_agent: Agent
-        intent: string
-        existing_claim_id: string
+        services: ServiceFE[]
+        people: PersonFE[]
+        artifacts: ArtifactFE[]
       }
     }
-  | { type: "agent.activity"; payload: ActivityEvent }
   | {
-      type: "artifact.referenced"
-      payload: { artifact_id: string; by_agent: Agent; scope: EntityId | FileId }
+      type: "working_context.created"
+      payload: { entry: WorkingContextEntryFE }
     }
-  | { type: "ingest.event"; payload: { summary: string; ts: number } }
-  | { type: "mcp.connected"; payload: { agent: Agent; connected: true } }
-  | { type: "mcp.disconnected"; payload: { agent: Agent; connected: false } }
+  | {
+      type: "working_context.superseded"
+      payload: { old_id: string; new_entry: WorkingContextEntryFE }
+    }
+  | {
+      type: "claim.activated"
+      payload: { entry: WorkingContextEntryFE }
+    }
+  | {
+      type: "claim.conflict"
+      payload: { attempted_by: Agent; existing_claim_id: string; intent: string }
+    }
+  | {
+      type: "claim.released"
+      payload: { claim_id: string; outcome: string }
+    }
+  | {
+      type: "read_context.started"
+      payload: { agent: Agent; query: string; scope?: EntityId | FileId }
+    }
+  | {
+      type: "read_context.completed"
+      payload: {
+        agent: Agent
+        query: string
+        resolved_entity: EntityId | FileId
+        traversed_entities: (EntityId | FileId)[]
+        returned_entry_ids: string[]
+        returned_artifact_ids: string[]
+      }
+    }
+  | { type: "agent.thought"; payload: { agent: Agent; text: string } }
   | { type: "ping"; payload: Record<string, never> }
+
+// ---------- Helpers ----------
+
+export function toFEArtifact(a: Artifact): ArtifactFE | null {
+  // FE only knows three sources; drop docs / code_chunk
+  let source: ArtifactSourceFE
+  switch (a.source) {
+    case "slack":
+      source = "slack"
+      break
+    case "github_pr":
+      source = "github"
+      break
+    case "jira_ticket":
+      source = "jira"
+      break
+    default:
+      return null
+  }
+  return {
+    _id: a._id,
+    source,
+    channel: a.channel,
+    content: a.content,
+    refs: a.refs,
+    created_at: new Date(a.created_at).toISOString(),
+  }
+}
+
+export function toFEWorkingContext(e: WorkingContextEntry): WorkingContextEntryFE {
+  return {
+    _id: e._id,
+    type: e.type,
+    author: e.author,
+    scope: e.scope,
+    content: e.content,
+    supersedes: e.supersedes,
+    superseded_by: e.superseded_by,
+    refs: e.refs,
+    active: e.active,
+    created_at: new Date(e.created_at).toISOString(),
+  }
+}

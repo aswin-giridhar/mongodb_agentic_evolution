@@ -3,7 +3,6 @@ import cors from "cors"
 import express from "express"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js"
 import { connect, disconnect } from "./db/client.js"
-import { startChangeStreams, stopChangeStreams } from "./db/changeStream.js"
 import { env } from "./lib/env.js"
 import { getSeed } from "./api/seed.js"
 import { streamHandler } from "./api/stream.js"
@@ -14,8 +13,8 @@ import type { Agent } from "./lib/types.js"
 
 async function main(): Promise<void> {
   await connect()
-  startChangeStreams()
-  // Pre-warm the resolver's entity catalogue so first call is fast
+
+  // Pre-warm the resolver's entity catalogue so the first call is fast
   await preWarmCatalogue().catch((err) =>
     console.warn("[startup] catalogue pre-warm failed (continuing):", err)
   )
@@ -65,9 +64,7 @@ async function main(): Promise<void> {
     transports.set(agent, transport)
   }
 
-  // JSON parsing only on the MCP routes (SSE route can't have express.json before it)
   const mcpJson = express.json({ limit: "4mb" })
-
   for (const agent of ["producer", "consumer"] as Agent[]) {
     const transport = transports.get(agent)!
     app.all(`/mcp/${agent}`, mcpJson, async (req, res) => {
@@ -87,7 +84,7 @@ async function main(): Promise<void> {
       `[substrate] listening on http://localhost:${env.PORT}\n` +
         `  GET  /healthz\n` +
         `  GET  /api/seed\n` +
-        `  GET  /api/stream\n` +
+        `  GET  /api/stream  (sends seed on connect)\n` +
         `  POST /api/demo/reset\n` +
         `  ALL  /mcp/producer\n` +
         `  ALL  /mcp/consumer`
@@ -96,7 +93,6 @@ async function main(): Promise<void> {
 
   const shutdown = async (): Promise<void> => {
     console.log("[substrate] shutting down…")
-    await stopChangeStreams()
     await disconnect()
     process.exit(0)
   }
