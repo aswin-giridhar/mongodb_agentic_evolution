@@ -1,7 +1,12 @@
 /**
- * Reset demo - Clear working_context and claims collections
+ * Reset demo - Clear working_context (which now also holds claims).
  *
- * Called by POST /api/demo/reset endpoint
+ * Mirrors what POST /api/demo/reset on the backend does. Use either —
+ * they wipe the same collections.
+ *
+ * Note: claims used to live in a separate collection. Since the SSE
+ * shape alignment (commit a9e5ed7) they live as WorkingContextEntry
+ * with type=claim, so wiping working_context drops them too.
  */
 
 import { MongoClient } from 'mongodb';
@@ -22,15 +27,11 @@ async function resetDemo() {
     await client.connect();
     const db = client.db(MONGODB_DB);
 
-    // Clear working context
+    // Clear working_context (claims live here too as type=claim entries)
     const wcResult = await db.collection('working_context').deleteMany({});
     console.log(`  ✓ Cleared ${wcResult.deletedCount} working_context entries`);
 
-    // Clear claims
-    const claimsResult = await db.collection('claims').deleteMany({});
-    console.log(`  ✓ Cleared ${claimsResult.deletedCount} claims`);
-
-    console.log('\n✅ Demo reset complete - artifacts intact');
+    console.log('\n✅ Demo reset complete — artifacts intact');
   } finally {
     await client.close();
   }
