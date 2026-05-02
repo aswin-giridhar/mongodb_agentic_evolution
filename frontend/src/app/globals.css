@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+:root {
+  --background: #020617;
+  --foreground: #e2e8f0;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  --animate-pulse-pill: pulse-pill 1.5s ease-in-out;
+  --animate-shake: shake 0.4s ease-in-out infinite;
+  --animate-fade-in: fade-in 0.4s ease-out;
+}
+
+html,
+body,
+#__next {
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes pulse-pill {
+  0%,
+  100% {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 6px rgba(99, 102, 241, 0.25),
+      0 4px 24px rgba(0, 0, 0, 0.4);
+    transform: scale(1.04);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* React Flow tweaks */
+.react-flow__attribution {
+  display: none !important;
+}
+
+.react-flow__node {
+  font-family: var(--font-sans);
+  animation: fade-in 0.4s ease-out;
+}
+
+.react-flow__edge-path {
+  transition: stroke 200ms ease;
+}
+
+.react-flow__controls button {
+  background: rgba(15, 23, 42, 0.85) !important;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.6) !important;
+  color: #e2e8f0 !important;
+}
+
+.react-flow__controls button:hover {
+  background: rgba(30, 41, 59, 0.95) !important;
+}
+
+.react-flow__controls button svg {
+  fill: currentColor !important;
+}
