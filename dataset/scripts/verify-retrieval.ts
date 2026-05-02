@@ -14,7 +14,23 @@
  */
 
 import { MongoClient } from "mongodb";
-import { VoyageAIClient } from "voyageai";
+
+async function voyageEmbed(text: string, apiKey: string): Promise<number[]> {
+  const url = apiKey.startsWith("al-")
+    ? "https://ai.mongodb.com/v1/embeddings"
+    : "https://api.voyageai.com/v1/embeddings";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ input: [text], model: "voyage-3", input_type: "query" }),
+  });
+  if (!res.ok) throw new Error(`Voyage embed failed (${res.status}): ${await res.text()}`);
+  const json = (await res.json()) as { data: { embedding: number[] }[] };
+  return json.data[0].embedding;
+}
 
 const MONGODB_URI = process.env.MONGODB_URI || "";
 const MONGODB_DB = process.env.MONGODB_DB || "substrate";
@@ -72,7 +88,6 @@ async function main(): Promise<void> {
   await client.connect();
   const db = client.db(MONGODB_DB);
   const artifacts = db.collection("artifacts");
-  const voyage = new VoyageAIClient({ apiKey: VOYAGE_API_KEY });
 
   console.log(`✅ Connected to ${MONGODB_DB}\n`);
 
@@ -84,13 +99,11 @@ async function main(): Promise<void> {
       console.log(`  query: "${probe.query}"`);
       if (probe.scopeRef) console.log(`  scope: ${probe.scopeRef}`);
 
-      const embeddingResult = await voyage.embed({
-        input: [probe.query],
-        model: "voyage-3",
-      });
-      const queryVector = embeddingResult.data?.[0]?.embedding;
-      if (!queryVector) {
-        console.error("  ❌ no embedding returned");
+      let queryVector: number[];
+      try {
+        queryVector = await voyageEmbed(probe.query, VOYAGE_API_KEY);
+      } catch (err) {
+        console.error("  ❌ embed failed:", err);
         allPassed = false;
         continue;
       }

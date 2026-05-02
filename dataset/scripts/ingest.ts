@@ -8,9 +8,32 @@
  */
 
 import { MongoClient, Db } from 'mongodb';
-import { VoyageAIClient } from 'voyageai';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+
+// Inline Voyage client — the published voyageai npm has an ESM dir-import bug
+// in Node 20. Direct fetch keeps the runtime simple and matches the backend.
+async function voyageEmbed(texts: string[], apiKey: string, model: string): Promise<number[][]> {
+  // MongoDB Atlas-issued keys ("al-...") use ai.mongodb.com.
+  // Voyage-direct keys ("pa-...") use api.voyageai.com. Auto-detect.
+  const baseUrl = apiKey.startsWith('al-')
+    ? 'https://ai.mongodb.com/v1/embeddings'
+    : 'https://api.voyageai.com/v1/embeddings';
+  const res = await fetch(baseUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ input: texts, model, input_type: 'document' }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Voyage embed failed (${res.status}): ${body}`);
+  }
+  const json = await res.json() as { data: { index: number; embedding: number[] }[] };
+  return json.data.sort((a, b) => a.index - b.index).map(d => d.embedding);
+}
 import { loadSeedSpec, chunk, extractRefs } from '../src/lib/utils.js';
 import type {
   SeedSpec,
@@ -120,7 +143,7 @@ async function ingest(options: IngestOptions = {}) {
     // Convert Slack messages
     for (const msg of slack) {
       artifacts.push({
-        _id: `slack:${msg.id}`,
+        _id: msg.id,    // already prefixed "slack:<hash>" by gen-slack
         source: 'slack',
         channel: `#${msg.channel}`,
         author: msg.author,
@@ -134,7 +157,7 @@ async function ingest(options: IngestOptions = {}) {
     // Convert PRs
     for (const pr of prs) {
       artifacts.push({
-        _id: `pr:${pr.id}`,
+        _id: pr.id,     // already prefixed "pr:<hash>" by gen-prs
         source: 'github_pr',
         author: pr.author,
         content: `${pr.title}\n\n${pr.description}`,
@@ -148,7 +171,7 @@ async function ingest(options: IngestOptions = {}) {
     // Convert Jira tickets
     for (const ticket of jira) {
       artifacts.push({
-        _id: `jira:${ticket.id}`,
+        _id: ticket.id, // already prefixed "jira:<hash>" by gen-jira
         source: 'jira_ticket',
         content: `${ticket.key}: ${ticket.title}\n\n${ticket.description}`,
         preview: `${ticket.key}: ${ticket.title}`,
@@ -161,7 +184,7 @@ async function ingest(options: IngestOptions = {}) {
     // Convert docs
     for (const doc of docs) {
       artifacts.push({
-        _id: `doc:${doc.id}`,
+        _id: doc.id,    // already prefixed "doc:<hash>" by gen-docs
         source: 'docs',
         author: doc.author,
         content: doc.content,
@@ -175,7 +198,7 @@ async function ingest(options: IngestOptions = {}) {
     // Convert code chunks
     for (const chunk of code) {
       artifacts.push({
-        _id: `code:${chunk.id}`,
+        _id: chunk.id,  // already prefixed "code:<hash>" by gen-code
         source: 'code_chunk',
         content: chunk.content,
         preview: chunk.path,
@@ -217,27 +240,37 @@ async function ingest(options: IngestOptions = {}) {
     // Step 4: Generate embeddings
     if (!options.skipEmbeddings) {
       console.log('🧠 Generating Voyage embeddings...');
-      const voyage = new VoyageAIClient({ apiKey: VOYAGE_API_KEY });
 
       let processed = 0;
-      const batches = chunk(artifacts, 32); // Voyage limit
+      const batches = chunk(artifacts, 32); // Voyage batch limit
 
       for (const [i, batch] of batches.entries()) {
         const texts = batch.map(a => a.content);
-        const result = await voyage.embed({ input: texts, model: 'voyage-3' });
-
+        const vectors = await voyageEmbed(texts, VOYAGE_API_KEY, 'voyage-3');
         for (let j = 0; j < batch.length; j++) {
-          if (result.data && result.data[j]) {
-            batch[j].embedding = result.data[j].embedding;
-          }
+          batch[j].embedding = vectors[j];
         }
-
         processed += batch.length;
         process.stdout.write(`\r  Processed ${processed}/${artifacts.length} embeddings`);
       }
 
       console.log('\n  ✓ Embeddings generated\n');
     }
+
+    // Step 4b: Dedup by _id (gen scripts can collide on identical content)
+    const beforeDedup = artifacts.length;
+    const seen = new Set<string>();
+    const deduped: typeof artifacts = [];
+    for (const a of artifacts) {
+      if (seen.has(a._id)) continue;
+      seen.add(a._id);
+      deduped.push(a);
+    }
+    if (deduped.length !== beforeDedup) {
+      console.log(`  ✓ Deduped ${beforeDedup - deduped.length} duplicate _ids\n`);
+    }
+    artifacts.length = 0;
+    artifacts.push(...deduped);
 
     // Step 5: Insert artifacts
     if (!options.dryRun && db) {

@@ -1,6 +1,12 @@
 import { env } from "../lib/env.js"
 
-const VOYAGE_URL = "https://api.voyageai.com/v1/embeddings"
+// MongoDB Atlas-issued model API keys ("al-...") route to ai.mongodb.com;
+// keys obtained directly from voyageai.com ("pa-...") use the Voyage host.
+function endpointForKey(key: string): string {
+  return key.startsWith("al-")
+    ? "https://ai.mongodb.com/v1/embeddings"
+    : "https://api.voyageai.com/v1/embeddings"
+}
 
 interface VoyageResponse {
   data: { embedding: number[]; index: number }[]
@@ -21,7 +27,7 @@ export async function embed(input: string | string[]): Promise<number[][]> {
     throw new Error(`Voyage batch size capped at 32; got ${inputs.length}`)
   }
 
-  const res = await fetch(VOYAGE_URL, {
+  const res = await fetch(endpointForKey(env.VOYAGE_API_KEY), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
