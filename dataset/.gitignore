@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+dist/
+
+# Environment
+.env
+.env.local
+
+# Generated data (only seed-spec.json should be committed)
+seed-data/slack.json
+seed-data/prs.json
+seed-data/jira.json
+seed-data/docs.json
+seed-data/code.json

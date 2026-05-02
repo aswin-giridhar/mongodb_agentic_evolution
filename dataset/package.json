@@ -1,0 +1,27 @@
+{
+  "name": "substrate-dataset",
+  "version": "1.0.0",
+  "description": "Synthetic dataset generator for Substrate hackathon",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "generate:slack": "node dist/scripts/gen-slack.js",
+    "generate:prs": "node dist/scripts/gen-prs.js",
+    "generate:jira": "node dist/scripts/gen-jira.js",
+    "generate:docs": "node dist/scripts/gen-docs.js",
+    "generate:code": "node dist/scripts/gen-code.js",
+    "generate:all": "npm run generate:slack && npm run generate:prs && npm run generate:jira && npm run generate:docs && npm run generate:code",
+    "ingest": "node dist/scripts/ingest.js",
+    "ingest:dry": "node dist/scripts/ingest.js --dry-run",
+    "reset": "node dist/scripts/reset-demo.js"
+  },
+  "dependencies": {
+    "mongodb": "^6.8.0",
+    "voyageai": "^0.2.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}

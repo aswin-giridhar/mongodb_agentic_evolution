@@ -1,0 +1,149 @@
+{
+  "services": [
+    {
+      "id": "auth",
+      "name": "auth",
+      "owner_team": "platform",
+      "depends_on": [],
+      "consumed_by": ["payments-api", "mobile-app"],
+      "hot_files": ["src/jwt.ts", "src/middleware.ts"]
+    },
+    {
+      "id": "payments-api",
+      "name": "payments-api",
+      "owner_team": "payments",
+      "depends_on": ["auth", "redis"],
+      "consumed_by": ["mobile-app", "admin"],
+      "hot_files": ["src/routes/checkout.ts", "src/routes/refund.ts"]
+    },
+    {
+      "id": "mobile-app",
+      "name": "mobile-app",
+      "owner_team": "mobile",
+      "depends_on": ["payments-api", "auth"],
+      "consumed_by": [],
+      "hot_files": ["src/checkout/CheckoutForm.tsx", "src/api/payments.ts"]
+    },
+    {
+      "id": "inventory",
+      "name": "inventory",
+      "owner_team": "platform",
+      "depends_on": ["redis"],
+      "consumed_by": ["payments-api", "admin"],
+      "hot_files": ["src/stock.ts", "src/reservations.ts"]
+    }
+  ],
+  "people": [
+    {
+      "id": "sarah",
+      "name": "Sarah",
+      "team": "platform",
+      "role": "lead",
+      "expertise": ["infrastructure", "deployments", "code review", "security"],
+      "handle": "@sarah"
+    },
+    {
+      "id": "marcus",
+      "name": "Marcus",
+      "team": "platform",
+      "role": "engineer",
+      "expertise": ["redis", "rate-limiting", "performance", "caching"],
+      "handle": "@marcus"
+    },
+    {
+      "id": "alex",
+      "name": "Alex",
+      "team": "payments",
+      "role": "lead",
+      "expertise": ["API design", "payment flows", "transactions", "idempotency"],
+      "handle": "@alex"
+    },
+    {
+      "id": "jin",
+      "name": "Jin",
+      "team": "mobile",
+      "role": "engineer",
+      "expertise": ["React", "mobile checkout", "state management", "hooks"],
+      "handle": "@jin"
+    }
+  ],
+  "channels": ["platform", "payments", "mobile", "incidents", "random"],
+  "tribal_rules": [
+    {
+      "id": "R1",
+      "rule": "use lib/limiter.ts not express-rate-limit",
+      "reason": "memory leak in production under load",
+      "slack_channel": "platform",
+      "slack_author": "marcus",
+      "slack_age_weeks": 6,
+      "pr_id": "1247",
+      "pr_title": "Replace express-rate-limit with redis-backed limiter",
+      "pr_files": ["lib/limiter.ts", "services/payments-api/src/routes/checkout.ts"],
+      "keywords": ["rate limit", "memory leak", "express-rate-limit", "lib/limiter", "redis"]
+    },
+    {
+      "id": "R2",
+      "rule": "Payments API responses use tx_id field, not transactionId",
+      "reason": "naming convention consistency across services",
+      "slack_channel": "payments",
+      "slack_author": "alex",
+      "slack_age_weeks": 3,
+      "pr_id": "1289",
+      "pr_title": "Standardize transaction ID field to tx_id",
+      "pr_files": ["services/payments-api/src/routes/checkout.ts", "services/mobile-app/src/api/payments.ts"],
+      "keywords": ["tx_id", "transactionId", "naming convention", "API"]
+    },
+    {
+      "id": "R3",
+      "rule": "Mobile checkout uses useCheckout hook, not raw fetch",
+      "reason": "consolidated state management and error handling",
+      "slack_channel": "mobile",
+      "slack_author": "jin",
+      "slack_age_weeks": 8,
+      "pr_id": "1102",
+      "pr_title": "Extract checkout logic into useCheckout hook",
+      "pr_files": ["services/mobile-app/src/hooks/useCheckout.ts", "services/mobile-app/src/checkout/CheckoutForm.tsx"],
+      "keywords": ["useCheckout", "hook", "fetch", "checkout", "mobile"]
+    },
+    {
+      "id": "R4",
+      "rule": "Auth middleware runs before logging middleware",
+      "reason": "security: don't log unauthenticated requests",
+      "slack_channel": "platform",
+      "slack_author": "sarah",
+      "slack_age_weeks": 16,
+      "pr_id": "998",
+      "pr_title": "Reorder middleware: auth before logging",
+      "pr_files": ["services/auth/src/middleware.ts", "lib/middleware.ts"],
+      "keywords": ["auth", "logging", "middleware", "security", "order"]
+    }
+  ],
+  "story_arcs": [
+    "Six weeks ago: Rate-limit incident caused checkout downtime for 20 minutes. Marcus investigated and found express-rate-limit was leaking memory under load. He wrote lib/limiter.ts (redis-backed) as replacement. Team agreed to deprecate express-rate-limit across all services. (Establishes R1.)",
+    "Three weeks ago: Cross-team alignment meeting where Alex pushed for tx_id naming convention. The mobile app was using transactionId while payments-api used tx_id. Alex made the case for consistency. Jin agreed to update mobile app. (R2.)",
+    "Two months ago: Mobile team was having issues with checkout state management. Multiple components were duplicating fetch logic. Jin consolidated everything into useCheckout hook. Marcus reviewed and approved. (R3.)",
+    "Four months ago: Security review caught that logging middleware was running before auth middleware, causing unauthenticated requests to be logged. Sarah flagged this as a security issue and led the fix. (R4.)",
+    "Last week: Open question on #payments about whether to add idempotency keys to refund endpoint. Alex is for it, Marcus concerned about redis load. Discussion ongoing.",
+    "Two weeks ago: Incident where inventory service went down, affecting checkout. Sarah led postmortem. Result: better circuit breaker patterns needed.",
+    "Five weeks ago: Marcus optimized redis connection pooling. Noticed checkout latency improved by 15%.",
+    "Yesterday: Jin shared mobile checkout UX improvements in #random. Team celebrated 99.9% checkout success rate for the week."
+  ],
+  "company": {
+    "name": "Acme Robotics",
+    "description": "A robotics company building autonomous delivery bots for urban last-mile delivery.",
+    "products": [
+      "Bot-R1 - sidewalk delivery bot",
+      "Bot-X - autonomous delivery vehicle",
+      "Hub-OS - fleet management system"
+    ]
+  },
+  "time_anchor": "2026-05-02",
+  "generation_config": {
+    "slack_messages_per_channel": 30,
+    "total_prs": 25,
+    "total_jira_tickets": 15,
+    "total_docs": 5,
+    "total_code_chunks": 30,
+    "thread_percentage": 20
+  }
+}

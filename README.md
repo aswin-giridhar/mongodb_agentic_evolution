@@ -26,6 +26,48 @@ The demo runs **two real Claude Code instances** side-by-side; the dashboard mak
 - **Prolonged coordination** — supersedes-chain across hours; MongoDB persists through restarts; TTL + outcome logging
 - **Adaptive retrieval** — `$graphLookup` + vector hybrid; scope-routed retrieval differs per query type
 
+## Project structure
+
+```
+substrate/
+├── backend/          # Node/Express MCP server + retrieval pipeline
+├── frontend/         # Next.js dashboard with live graph visualization
+├── dataset/          # Synthetic data generator for Acme Robotics
+└── docs/             # Planning specs
+```
+
+### Quick start
+
+1. **Generate synthetic data** (optional - for demo):
+   ```bash
+   cd dataset
+   npm install
+   cp .env.example .env  # add MONGODB_URI, VOYAGE_API_KEY
+   npm run build
+   npm run generate:all
+   npm run ingest
+   ```
+
+2. **Start backend**:
+   ```bash
+   cd backend
+   npm install
+   cp .env.example .env  # add credentials
+   npm run dev  # http://localhost:3000
+   ```
+
+3. **Start frontend**:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev  # http://localhost:3001
+   ```
+
+4. **Connect Claude Code instances**:
+   - Create `.mcp.json` in two separate directories
+   - Point one to `http://localhost:3000/mcp/producer`
+   - Point the other to `http://localhost:3000/mcp/consumer`
+
 ## Project docs
 
 Planning specs in [`docs/`](./docs):
@@ -35,6 +77,11 @@ Planning specs in [`docs/`](./docs):
 - [`docs/backend-spec.md`](./docs/backend-spec.md) — MCP server, retrieval pipeline, agent integration
 - [`docs/dataset-spec.md`](./docs/dataset-spec.md) — synthetic dataset and MongoDB Atlas setup
 - [`docs/pre-event-checklist.md`](./docs/pre-event-checklist.md) — environment setup checklist
+
+Implementation READMEs:
+- [`backend/README.md`](./backend/README.md) — backend setup and MCP configuration
+- [`frontend/README.md`](./frontend/README.md) — dashboard setup
+- [`dataset/README.md`](./dataset/README.md) — data generation pipeline
 
 ## Team
 
