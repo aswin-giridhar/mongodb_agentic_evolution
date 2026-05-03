@@ -1,0 +1,213 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Substrate — "Editorial Infra" theme.
+   Warm paper surface, ink-on-paper graph, single electric accent.
+   All colors HSL.
+*/
+
+@layer base {
+  :root {
+    /* Paper surface */
+    --background: 36 40% 94%;          /* #F6F1E8 warm paper */
+    --paper-2: 36 30% 90%;             /* slightly darker tint */
+    --foreground: 0 0% 7%;             /* near-black ink */
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 7%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 7%;
+
+    /* Electric accent — signal orange */
+    --primary: 14 100% 56%;            /* #FF4D1F */
+    --primary-foreground: 36 40% 96%;
+
+    --secondary: 36 24% 86%;
+    --secondary-foreground: 0 0% 7%;
+
+    --muted: 36 24% 88%;
+    --muted-foreground: 0 0% 32%;
+
+    --accent: 14 100% 56%;
+    --accent-foreground: 36 40% 96%;
+
+    --destructive: 6 78% 47%;
+    --destructive-foreground: 36 40% 96%;
+
+    --border: 0 0% 7%;                  /* ink border */
+    --border-soft: 0 0% 80%;            /* hairlines */
+    --input: 0 0% 80%;
+    --ring: 14 100% 56%;
+
+    --radius: 0.5rem;
+
+    /* Aliases used by existing components */
+    --surface: 0 0% 100%;               /* white card on paper */
+    --surface-2: 36 30% 90%;            /* paper-2 */
+    --ink: 0 0% 7%;
+    --ink-dim: 0 0% 38%;
+
+    /* Agents */
+    --agent-producer: 232 100% 56%;     /* #1E3AFF cobalt */
+    --agent-consumer: 80 100% 59%;      /* #B8FF2E acid lime */
+
+    /* Working-context states */
+    --state-draft: 42 100% 44%;         /* #E0A800 mustard */
+    --state-decision: 145 81% 23%;      /* #0B6B3A forest */
+    --state-claim: 6 78% 47%;           /* #D4351C tomato */
+    --state-investigation: 250 59% 46%; /* #4530B8 indigo */
+    --state-question: 0 0% 23%;         /* graphite */
+
+    /* Edges */
+    --edge-structural: 0 0% 7%;
+    --edge-dim: 0 0% 70%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 0 0% 7%;
+    --sidebar-primary: 14 100% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 36 24% 88%;
+    --sidebar-accent-foreground: 0 0% 7%;
+    --sidebar-border: 0 0% 80%;
+    --sidebar-ring: 14 100% 56%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Inter Tight", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-feature-settings: "ss01", "cv11";
+    /* Subtle paper grain */
+    background-image:
+      radial-gradient(hsl(0 0% 7% / 0.04) 1px, transparent 1px),
+      radial-gradient(hsl(0 0% 7% / 0.025) 1px, transparent 1px);
+    background-size: 3px 3px, 7px 7px;
+    background-position: 0 0, 1px 2px;
+  }
+
+  html, body, #root { height: 100%; }
+}
+
+@layer utilities {
+  .font-display { font-family: "Fraunces", ui-serif, Georgia, serif; font-optical-sizing: auto; }
+  .font-body    { font-family: "Inter Tight", ui-sans-serif, system-ui, sans-serif; }
+  .font-mono    { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  .text-ink     { color: hsl(var(--ink)); }
+  .text-ink-dim { color: hsl(var(--ink-dim)); }
+  .bg-paper     { background-color: hsl(var(--background)); }
+  .bg-paper-2   { background-color: hsl(var(--paper-2)); }
+  .bg-surface   { background-color: hsl(var(--surface)); }
+  .bg-surface-2 { background-color: hsl(var(--surface-2)); }
+  .border-ink   { border-color: hsl(var(--ink)); }
+  .border-soft  { border-color: hsl(var(--border-soft)); }
+
+  /* Smallcaps editorial label */
+  .smallcaps {
+    font-family: "Fraunces", ui-serif, Georgia, serif;
+    font-variation-settings: "opsz" 144;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-weight: 600;
+    font-size: 10px;
+  }
+
+  /* Ink-flash: brief inversion on touched nodes */
+  .ink-flash {
+    animation: ink-flash 700ms ease-out;
+  }
+  @keyframes ink-flash {
+    0%   { background-color: hsl(var(--ink)); color: hsl(var(--background)); }
+    60%  { background-color: hsl(var(--ink)); color: hsl(var(--background)); }
+    100% { background-color: hsl(var(--surface)); color: hsl(var(--ink)); }
+  }
+
+  /* Underline sweep — used on new wc pills + active view tab */
+  .underline-sweep {
+    position: relative;
+  }
+  .underline-sweep::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -4px;
+    height: 3px;
+    background: hsl(var(--primary));
+    transform-origin: left center;
+    animation: underline-sweep 700ms ease-out;
+  }
+  @keyframes underline-sweep {
+    0%   { transform: scaleX(0); }
+    100% { transform: scaleX(1); }
+  }
+
+  .shake { animation: node-shake 300ms ease-in-out 2; }
+  @keyframes node-shake {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(-4px); }
+    75%      { transform: translateX(4px); }
+  }
+
+  /* Replace old neon glow with editorial mark: thicker ink border + orange underline */
+  .glow-soft {
+    box-shadow: inset 0 0 0 2px hsl(var(--ink));
+    position: relative;
+  }
+  .glow-soft::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -6px;
+    height: 4px;
+    background: hsl(var(--primary));
+  }
+
+  /* Pulse shorthand reused for non-retrieval emphasis (writes, claims) */
+  .animate-pulse-glow { animation: editorial-pulse 1.2s ease-in-out infinite; }
+  @keyframes editorial-pulse {
+    0%, 100% { box-shadow: inset 0 0 0 1.5px hsl(var(--ink) / 0.9); }
+    50%      { box-shadow: inset 0 0 0 2.5px hsl(var(--primary)); }
+  }
+
+  .substrate-dim { opacity: 0.35; }
+  .substrate-dim .wc-summary { text-decoration: line-through; }
+
+  /* Org-name pulse dot in header */
+  .signal-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 9999px;
+    background: hsl(var(--primary));
+  }
+  .signal-dot.live { animation: signal-throb 1.6s ease-in-out infinite; }
+  @keyframes signal-throb {
+    0%, 100% { transform: scale(1);   box-shadow: 0 0 0 0 hsl(var(--primary) / 0.6); }
+    50%      { transform: scale(1.3); box-shadow: 0 0 0 6px hsl(var(--primary) / 0); }
+  }
+}
+
+/* react-flow theme overrides */
+.react-flow__renderer { background: transparent; }
+.react-flow__edge-path { stroke: hsl(var(--edge-structural)); }
+.react-flow__attribution { display: none; }
+.react-flow__controls button {
+  background: hsl(var(--surface)) !important;
+  border-color: hsl(var(--ink)) !important;
+  color: hsl(var(--ink)) !important;
+}
+
+/* Animated dashed retrieval edge */
+.edge-retrieval .react-flow__edge-path {
+  stroke: hsl(var(--primary));
+  stroke-width: 2.5;
+  stroke-dasharray: 8 6;
+  animation: dash-trace 0.6s linear infinite;
+}
+@keyframes dash-trace {
+  to { stroke-dashoffset: -28; }
+}
