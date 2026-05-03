@@ -83,6 +83,22 @@ Implementation READMEs:
 - [`frontend/README.md`](./frontend/README.md) — dashboard setup
 - [`dataset/README.md`](./dataset/README.md) — data generation pipeline
 
+## Lovable design (`holo-trace-sight/`, on `nicole_frontend` branch)
+
+The `nicole_frontend` branch contains an alternative frontend design generated in [Lovable](https://lovable.dev), imported as a git subtree from https://github.com/NicoleJiang133/holo-trace-sight.
+
+To pull the latest Lovable iteration into this repo:
+
+```bash
+git remote add lovable https://github.com/NicoleJiang133/holo-trace-sight.git  # one-time
+git fetch lovable
+git checkout nicole_frontend
+git subtree pull --prefix=holo-trace-sight lovable main --squash
+git push origin nicole_frontend
+```
+
+Edit the design in Lovable, not directly in `holo-trace-sight/`, to avoid merge conflicts.
+
 ## Team
 
 - Aswin (data + MongoDB)
