@@ -3,23 +3,58 @@ import type { Node, Edge, XYPosition } from "reactflow";
 
 // Curated anchors for the Acme dataset. Unknown ids fall back to dagre.
 // Coordinates are in the react-flow coordinate space (px); the canvas auto-fits.
+//
+// Both the original mock id format (`service:foo`, `person:foo`) and the
+// live backend id format (`services.foo`, `people.foo`) are mapped here so
+// either data source produces the same horizontal-spine layout. anchorFor()
+// also normalizes between the two formats.
 export const CURATED_ANCHORS: Record<string, XYPosition> = {
+  // ---- Mock data (Lovable's original fixtures) ----
   // Services along a horizontal spine
   "service:payments-api": { x: 0, y: 0 },
   "service:checkout-web": { x: -360, y: 0 },
   "service:ledger": { x: 360, y: 0 },
   "service:notifications": { x: 720, y: 0 },
   "service:identity": { x: -720, y: 0 },
-
   // People above
   "person:alex": { x: -540, y: -260 },
   "person:bea": { x: -180, y: -260 },
   "person:cris": { x: 180, y: -260 },
   "person:dani": { x: 540, y: -260 },
+
+  // ---- Live data (Acme dataset on MongoDB Atlas) ----
+  // Services along a horizontal spine
+  "services.auth-service":         { x: -720, y: 0 },
+  "services.payments-api":         { x: -360, y: 0 },
+  "services.notification-service": { x:    0, y: 0 },
+  "services.mobile-app":           { x:  360, y: 0 },
+  "services.admin-dashboard":      { x:  720, y: 0 },
+  "services.search-api":           { x: 1080, y: 0 },
+  // People above
+  "people.marcus": { x: -780, y: -260 },
+  "people.elena":  { x: -420, y: -260 },
+  "people.priya":  { x:  -60, y: -260 },
+  "people.raj":    { x:  300, y: -260 },
+  "people.sara":   { x:  660, y: -260 },
+  "people.james":  { x: 1020, y: -260 },
 };
 
 export function anchorFor(id: string): XYPosition | undefined {
-  return CURATED_ANCHORS[id];
+  // Direct hit (covers both mock and live formats once they're registered above)
+  const direct = CURATED_ANCHORS[id];
+  if (direct) return direct;
+  // Cross-format fallback: try translating between `services.foo` ↔ `service:foo`
+  const dotMatch = id.match(/^(services|people)\.(.+)$/);
+  if (dotMatch) {
+    const alt = `${dotMatch[1].replace(/s$/, "")}:${dotMatch[2]}`;
+    if (CURATED_ANCHORS[alt]) return CURATED_ANCHORS[alt];
+  }
+  const colonMatch = id.match(/^(service|person):(.+)$/);
+  if (colonMatch) {
+    const alt = `${colonMatch[1]}s.${colonMatch[2]}`;
+    if (CURATED_ANCHORS[alt]) return CURATED_ANCHORS[alt];
+  }
+  return undefined;
 }
 
 /**
