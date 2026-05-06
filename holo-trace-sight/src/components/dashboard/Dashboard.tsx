@@ -47,7 +47,9 @@ export function Dashboard() {
   useEffect(() => {
     if (mode !== "mock") return;
     loadSeed(MOCK_SEED);
-    setConn("open");
+    // Use a distinct "mock" state so the connection dot doesn't lie about
+    // being live when we're actually replaying a scripted scenario.
+    setConn("mock");
     mockRef.current = startMock(applyEvent, { loop: true });
     return () => {
       mockRef.current?.stop();

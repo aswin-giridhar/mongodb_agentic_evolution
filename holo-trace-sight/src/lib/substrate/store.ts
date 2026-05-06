@@ -13,7 +13,7 @@ import type {
 
 const ACTIVITY_CAP = 500;
 
-export type ConnState = "idle" | "connecting" | "open" | "error";
+export type ConnState = "idle" | "connecting" | "open" | "error" | "mock";
 
 export interface HighlightStep {
   id: string;

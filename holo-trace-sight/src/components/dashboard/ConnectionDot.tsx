@@ -7,6 +7,7 @@ export function ConnectionDot({ state }: { state: ConnState }) {
     connecting: { cls: "bg-state-draft animate-pulse", label: "connecting" },
     open:       { cls: "bg-state-decision", label: "live" },
     error:      { cls: "bg-state-claim animate-pulse", label: "offline" },
+    mock:       { cls: "bg-primary", label: "mock" },
   };
   const { cls, label } = map[state];
   return (
