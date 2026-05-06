@@ -1,66 +1,129 @@
 import type { SeedPayload, SubstrateEvent } from "./types";
 
+// Mock data aligned with the live MongoDB Atlas dataset:
+// 6 services + 6 people, matching backend id format (`services.foo`, `people.foo`)
+// so the mock layout matches the live layout exactly. Identical entity counts
+// to the sibling `frontend/` (Mohammed's) mock.
+
 export const MOCK_SEED: SeedPayload = {
   org: "acme-robotics",
   services: [
-    { _id: "service:identity", name: "identity", team: "platform", depends_on: [] },
     {
-      _id: "service:checkout-web",
-      name: "checkout-web",
-      team: "growth",
-      depends_on: ["service:payments-api", "service:identity"],
-    },
-    {
-      _id: "service:payments-api",
-      name: "payments-api",
-      team: "payments",
-      depends_on: ["service:ledger", "service:identity"],
-    },
-    {
-      _id: "service:ledger",
-      name: "ledger",
-      team: "payments",
-      depends_on: [],
-    },
-    {
-      _id: "service:notifications",
-      name: "notifications",
+      _id: "services.auth-service",
+      name: "auth-service",
       team: "platform",
-      depends_on: ["service:ledger"],
+      depends_on: [],
+      consumed_by: ["services.payments-api", "services.mobile-app"],
+    },
+    {
+      _id: "services.payments-api",
+      name: "payments-api",
+      team: "platform",
+      depends_on: ["services.auth-service"],
+      consumed_by: ["services.mobile-app", "services.admin-dashboard"],
+    },
+    {
+      _id: "services.notification-service",
+      name: "notification-service",
+      team: "platform",
+      depends_on: [],
+      consumed_by: ["services.payments-api", "services.mobile-app"],
+    },
+    {
+      _id: "services.mobile-app",
+      name: "mobile-app",
+      team: "mobile",
+      depends_on: [
+        "services.payments-api",
+        "services.auth-service",
+        "services.search-api",
+        "services.notification-service",
+      ],
+      consumed_by: [],
+    },
+    {
+      _id: "services.admin-dashboard",
+      name: "admin-dashboard",
+      team: "growth",
+      depends_on: ["services.payments-api"],
+      consumed_by: [],
+    },
+    {
+      _id: "services.search-api",
+      name: "search-api",
+      team: "platform",
+      depends_on: [],
+      consumed_by: ["services.mobile-app"],
     },
   ],
   files: [
     {
-      _id: "payments-api/src/checkout.ts",
-      service_id: "service:payments-api",
+      _id: "services.payments-api/checkout.ts",
+      service_id: "services.payments-api",
       name: "checkout.ts",
     },
     {
-      _id: "payments-api/src/refund.ts",
-      service_id: "service:payments-api",
+      _id: "services.payments-api/refund.ts",
+      service_id: "services.payments-api",
       name: "refund.ts",
     },
     {
-      _id: "ledger/src/posting.ts",
-      service_id: "service:ledger",
-      name: "posting.ts",
+      _id: "services.mobile-app/CheckoutForm.tsx",
+      service_id: "services.mobile-app",
+      name: "CheckoutForm.tsx",
     },
     {
-      _id: "checkout-web/src/cart.tsx",
-      service_id: "service:checkout-web",
-      name: "cart.tsx",
+      _id: "services.notification-service/dispatcher.ts",
+      service_id: "services.notification-service",
+      name: "dispatcher.ts",
     },
   ],
   people: [
-    { _id: "person:alex", name: "Alex", team: "payments", expertise: ["ledger"] },
-    { _id: "person:bea", name: "Bea", team: "payments", expertise: ["checkout"] },
-    { _id: "person:cris", name: "Cris", team: "growth", expertise: ["web"] },
-    { _id: "person:dani", name: "Dani", team: "platform", expertise: ["identity"] },
+    {
+      _id: "people.marcus",
+      name: "Marcus",
+      team: "platform",
+      expertise: ["redis", "rate-limiting", "caching"],
+    },
+    {
+      _id: "people.elena",
+      name: "Elena",
+      team: "platform",
+      expertise: ["postgres", "transactions", "auth", "security"],
+    },
+    {
+      _id: "people.priya",
+      name: "Priya",
+      team: "mobile",
+      expertise: ["react-native", "checkout-flow", "hooks"],
+    },
+    {
+      _id: "people.raj",
+      name: "Raj",
+      team: "mobile",
+      expertise: ["graphql", "api-clients"],
+    },
+    {
+      _id: "people.sara",
+      name: "Sara",
+      team: "growth",
+      expertise: ["analytics", "experimentation"],
+    },
+    {
+      _id: "people.james",
+      name: "James",
+      team: "growth",
+      expertise: ["dashboards", "reporting"],
+    },
   ],
   artifacts: [
-    { _id: "pr:payments-1421", kind: "pr", title: "PR #1421 — idempotent refunds" },
-    { _id: "slack:checkout-incident", kind: "slack", title: "#checkout-incident 04-29" },
-    { _id: "jira:LED-204", kind: "jira", title: "LED-204 double-posting bug" },
+    { _id: "pr:1247", kind: "github_pr", title: "PR #1247 — replace express-rate-limit with redis-backed limiter" },
+    {
+      _id: "slack:marcus-rate-limit-warning",
+      kind: "slack",
+      title: "#platform — Marcus on rate-limit memory leak",
+    },
+    { _id: "jira:GROWTH-204", kind: "jira", title: "GROWTH-204 — cohort-based pricing experiment" },
   ],
   working_context: [],
 };
@@ -74,23 +137,23 @@ export const MOCK_SCRIPT: { delay: number; event: SubstrateEvent }[] = [
       type: "read_context",
       data: {
         agent: "producer",
-        scope_entity_id: "service:payments-api",
-        returned_ids: ["service:ledger", "person:alex"],
-        query: "who owns refund posting?",
+        scope_entity_id: "services.payments-api",
+        returned_ids: ["services.auth-service", "people.elena"],
+        query: "who owns transaction integrity?",
       },
     },
   },
-  // 2) Producer drafts a schema on payments-api
+  // 2) Producer drafts a transaction schema on payments-api
   {
     delay: 1400,
     event: {
       type: "working_context.write",
       data: {
-        _id: "wc:draft-refund-1",
+        _id: "wc:draft-transaction-1",
         type: "draft_schema",
-        scope: { entity_id: "service:payments-api", entity_kind: "service" },
+        scope: { entity_id: "services.payments-api", entity_kind: "service" },
         author: "producer",
-        summary: "Refund payload v1: { id, amount, reason }",
+        summary: "Transaction payload v1: { tx_id, amount, currency, status }",
         created_at: Date.now(),
       },
     },
@@ -102,8 +165,8 @@ export const MOCK_SCRIPT: { delay: number; event: SubstrateEvent }[] = [
       type: "claim.acquire",
       data: {
         agent: "producer",
-        file_id: "payments-api/src/checkout.ts",
-        wc_id: "wc:draft-refund-1",
+        file_id: "services.payments-api/checkout.ts",
+        wc_id: "wc:draft-transaction-1",
       },
     },
   },
@@ -114,8 +177,8 @@ export const MOCK_SCRIPT: { delay: number; event: SubstrateEvent }[] = [
       type: "read_context",
       data: {
         agent: "consumer",
-        scope_entity_id: "service:payments-api",
-        returned_ids: ["wc:draft-refund-1", "person:alex"],
+        scope_entity_id: "services.payments-api",
+        returned_ids: ["wc:draft-transaction-1", "people.elena"],
         query: "open drafts on payments-api",
       },
     },
@@ -127,23 +190,23 @@ export const MOCK_SCRIPT: { delay: number; event: SubstrateEvent }[] = [
       type: "claim.collision",
       data: {
         agent: "consumer",
-        file_id: "payments-api/src/checkout.ts",
+        file_id: "services.payments-api/checkout.ts",
         held_by: "producer",
       },
     },
   },
-  // 6) Consumer logs an investigation on ledger
+  // 6) Consumer logs an investigation on notification-service
   {
     delay: 1300,
     event: {
       type: "working_context.write",
       data: {
-        _id: "wc:invest-double-post",
+        _id: "wc:invest-notif-deprecation",
         type: "investigation",
-        scope: { entity_id: "service:ledger", entity_kind: "service" },
+        scope: { entity_id: "services.notification-service", entity_kind: "service" },
         author: "consumer",
-        summary: "Double-posting reproduces under retry storm",
-        refs: ["jira:LED-204"],
+        summary: "v1 deprecation impact reproduces under sustained payment load",
+        refs: ["jira:GROWTH-204"],
         created_at: Date.now(),
       },
     },
@@ -154,11 +217,11 @@ export const MOCK_SCRIPT: { delay: number; event: SubstrateEvent }[] = [
     event: {
       type: "working_context.write",
       data: {
-        _id: "wc:q-alex",
+        _id: "wc:q-elena",
         type: "open_question",
-        scope: { entity_id: "person:alex", entity_kind: "person" },
+        scope: { entity_id: "people.elena", entity_kind: "person" },
         author: "consumer",
-        summary: "Is idempotency key per-attempt or per-intent?",
+        summary: "Is the idempotency key per-attempt or per-transaction?",
         created_at: Date.now(),
       },
     },
@@ -169,13 +232,13 @@ export const MOCK_SCRIPT: { delay: number; event: SubstrateEvent }[] = [
     event: {
       type: "working_context.write",
       data: {
-        _id: "wc:decision-refund",
+        _id: "wc:decision-transaction",
         type: "decision",
-        scope: { entity_id: "service:payments-api", entity_kind: "service" },
+        scope: { entity_id: "services.payments-api", entity_kind: "service" },
         author: "producer",
-        summary: "Refund payload finalised: idempotency_key required",
-        refs: ["pr:payments-1421", "slack:checkout-incident"],
-        supersedes: "wc:draft-refund-1",
+        summary: "Transaction payload finalised: idempotency_key required, tx_id immutable",
+        refs: ["pr:1247", "slack:marcus-rate-limit-warning"],
+        supersedes: "wc:draft-transaction-1",
         created_at: Date.now(),
       },
     },
@@ -184,7 +247,7 @@ export const MOCK_SCRIPT: { delay: number; event: SubstrateEvent }[] = [
     delay: 200,
     event: {
       type: "working_context.supersede",
-      data: { old_id: "wc:draft-refund-1", new_id: "wc:decision-refund" },
+      data: { old_id: "wc:draft-transaction-1", new_id: "wc:decision-transaction" },
     },
   },
   // 9) Producer releases the file
@@ -192,7 +255,7 @@ export const MOCK_SCRIPT: { delay: number; event: SubstrateEvent }[] = [
     delay: 800,
     event: {
       type: "claim.release",
-      data: { agent: "producer", file_id: "payments-api/src/checkout.ts" },
+      data: { agent: "producer", file_id: "services.payments-api/checkout.ts" },
     },
   },
   // 10) Consumer makes a claim entry on a different file
@@ -202,36 +265,36 @@ export const MOCK_SCRIPT: { delay: number; event: SubstrateEvent }[] = [
       type: "claim.acquire",
       data: {
         agent: "consumer",
-        file_id: "ledger/src/posting.ts",
+        file_id: "services.notification-service/dispatcher.ts",
       },
     },
   },
-  // 11) A grounded claim on ledger
+  // 11) A grounded claim on notification-service
   {
     delay: 1100,
     event: {
       type: "working_context.write",
       data: {
-        _id: "wc:claim-posting",
+        _id: "wc:claim-dispatcher",
         type: "claim",
-        scope: { entity_id: "ledger/src/posting.ts", entity_kind: "file" },
+        scope: { entity_id: "services.notification-service/dispatcher.ts", entity_kind: "file" },
         author: "consumer",
-        summary: "post() must be wrapped in tx with SERIALIZABLE",
-        refs: ["pr:payments-1421"],
+        summary: "dispatch() must batch across keep-alive connections",
+        refs: ["pr:1247"],
         created_at: Date.now(),
       },
     },
   },
-  // 12) Final retrieval pulse — Producer reads decisions from ledger
+  // 12) Final retrieval pulse — Producer reads decisions from notification-service
   {
     delay: 1400,
     event: {
       type: "read_context",
       data: {
         agent: "producer",
-        scope_entity_id: "service:ledger",
-        returned_ids: ["wc:invest-double-post", "wc:claim-posting"],
-        query: "open work on ledger",
+        scope_entity_id: "services.notification-service",
+        returned_ids: ["wc:invest-notif-deprecation", "wc:claim-dispatcher"],
+        query: "open work on notification-service",
       },
     },
   },
