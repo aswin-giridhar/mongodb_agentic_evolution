@@ -116,14 +116,46 @@ export const MOCK_SEED: SeedPayload = {
       expertise: ["dashboards", "reporting"],
     },
   ],
+  // Same 12 curated artifacts as the live MongoDB dataset and Mohammed's mock.
+  // `kind` matches the value the SSE translator emits in live mode
+  // (slack/github/jira) so the chip styling renders identically across modes.
   artifacts: [
-    { _id: "pr:1247", kind: "github_pr", title: "PR #1247 — replace express-rate-limit with redis-backed limiter" },
     {
       _id: "slack:marcus-rate-limit-warning",
       kind: "slack",
-      title: "#platform — Marcus on rate-limit memory leak",
+      title: "#platform — Marcus: don't use express-rate-limit (memory leak)",
     },
-    { _id: "jira:GROWTH-204", kind: "jira", title: "GROWTH-204 — cohort-based pricing experiment" },
+    { _id: "pr:1247", kind: "github", title: "PR #1247 — replace express-rate-limit with redis-backed limiter" },
+    { _id: "pr:1192", kind: "github", title: "PR #1192 — SERIALIZABLE isolation on transaction inserts" },
+    { _id: "pr:1233", kind: "github", title: "PR #1233 — codegen typed clients from OpenAPI" },
+    { _id: "pr:1188", kind: "github", title: "PR #1188 — admin orders dashboard status breakdown" },
+    {
+      _id: "jira:GROWTH-204",
+      kind: "jira",
+      title: "GROWTH-204 — cohort-based pricing experiment",
+    },
+    {
+      _id: "slack:checkout-bug-thread",
+      kind: "slack",
+      title: "#payments — 502s on /checkout (live thread)",
+    },
+    {
+      _id: "slack:orders-schema-question",
+      kind: "slack",
+      title: "#mobile — transaction_id vs txn_id naming",
+    },
+    { _id: "pr:1301-orders-v2", kind: "github", title: "PR draft — /api/v2/orders + idempotency keys" },
+    { _id: "jira:PLAT-87", kind: "jira", title: "PLAT-87 — JWT signing key rotation (quarterly)" },
+    {
+      _id: "github:incident-2024-q1",
+      kind: "github",
+      title: "Q1 incident postmortem — checkout availability",
+    },
+    {
+      _id: "slack:notif-deprecation",
+      kind: "slack",
+      title: "#platform — notification-service v1 deprecation reminder",
+    },
   ],
   working_context: [],
 };

@@ -39,6 +39,25 @@ export function Header({ mode, onToggleMode }: HeaderProps = {}) {
     }
   };
 
+  const [running, setRunning] = useState(false);
+  const onRunDemo = async () => {
+    if (running) return;
+    setRunning(true);
+    try {
+      await fetch(`${API_BASE_URL}/api/demo/run-scenario`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reset: true }),
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[run-scenario] failed:", err);
+    } finally {
+      // Disable button for the duration of the scripted scenario (~10s)
+      setTimeout(() => setRunning(false), 11_000);
+    }
+  };
+
   return (
     <header className="relative flex h-16 items-end justify-between border-b border-ink bg-paper px-8 pb-2">
       <div className="flex items-baseline gap-4">
@@ -81,8 +100,16 @@ export function Header({ mode, onToggleMode }: HeaderProps = {}) {
           </button>
         )}
         <button
+          onClick={onRunDemo}
+          disabled={running}
+          className="font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-ink underline decoration-primary decoration-2 underline-offset-4 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          title="Fire the scripted scenario against the live backend"
+        >
+          {running ? "Running…" : "Run Demo"}
+        </button>
+        <button
           onClick={onReset}
-          className="font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-ink underline decoration-primary decoration-2 underline-offset-4 hover:text-primary"
+          className="font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-ink underline decoration-ink/30 decoration-2 underline-offset-4 hover:text-primary hover:decoration-primary"
         >
           Reset
         </button>
