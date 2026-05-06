@@ -94,18 +94,22 @@ export function Header({ mode, onToggleMode }: HeaderProps = {}) {
           <button
             onClick={onToggleMode}
             className="font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-dim underline decoration-ink/30 underline-offset-4 hover:text-ink hover:decoration-primary"
-            title="Toggle scripted demo / live backend"
+            title={
+              mode === "mock"
+                ? "Switch to the live MongoDB backend"
+                : "Switch to the scripted mock dataset"
+            }
           >
-            {mode === "mock" ? "Demo Mode" : "Live"}
+            {mode === "mock" ? "Use Live" : "Use Mock"}
           </button>
         )}
         <button
           onClick={onRunDemo}
           disabled={running}
           className="font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-ink underline decoration-primary decoration-2 underline-offset-4 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
-          title="Fire the scripted scenario against the live backend"
+          title="Fire the scripted scenario through the backend (Producer + Consumer)"
         >
-          {running ? "Running…" : "Run Demo"}
+          {running ? "Running…" : "Run Scenario"}
         </button>
         <button
           onClick={onReset}

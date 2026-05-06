@@ -86,7 +86,7 @@ export const Header = ({ onReset }: Props) => {
           className="flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-950/60 px-4 py-1.5 text-xs font-medium uppercase tracking-wider text-emerald-200 transition hover:border-emerald-500 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Play size={12} />
-          {running ? "Running…" : "Run Demo"}
+          {running ? "Running…" : "Run Scenario"}
         </button>
         <button
           type="button"
