@@ -24,8 +24,15 @@ export async function streamHandler(
   res.write(": connected\n\n")
 
   const send = (event: SSEEvent): void => {
+    // Named event — clients (e.g., Mohammed's FE) subscribe per-name
+    // via es.addEventListener("working_context.created", ...)
     res.write(`event: ${event.type}\n`)
     res.write(`data: ${JSON.stringify(event.payload)}\n\n`)
+    // Unnamed copy with `kind` in the data — clients (e.g., Nicole's FE)
+    // that use the default es.onmessage handler still receive it.
+    // Default-handler clients only fire on unnamed messages, so emitting
+    // both lets either subscription style work without FE changes.
+    res.write(`data: ${JSON.stringify({ kind: event.type, ...event.payload })}\n\n`)
   }
 
   // Send seed snapshot first so the dashboard can render the structural skeleton.
