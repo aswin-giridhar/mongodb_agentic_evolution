@@ -235,6 +235,21 @@ export function startSSE(opts: SSEClientOptions): () => void {
     // store's working_context.write handler already populates referencedArtifacts
     // from each WC's refs array, so we can safely ignore this event.
 
+    // resolver.decided → the BP1 Resolver Agent's adjudication output. Already
+    // in a shape that matches the FE's internal SubstrateEvent (`type` + `data`
+    // wrapper), so this is a near-passthrough.
+    es.addEventListener("resolver.decided", (ev: MessageEvent) => {
+      const p = safeJson<{
+        action: "DROP" | "WRITE"
+        scope: string
+        rationale: string
+        new_id?: string
+        supersede_ids?: string[]
+      }>(ev.data)
+      if (!p) return
+      dispatch({ type: "resolver.decided", data: p })
+    })
+
     // The seed SSE event is also ignored here; the Dashboard already calls
     // fetchSeed() over HTTP at boot.
   };

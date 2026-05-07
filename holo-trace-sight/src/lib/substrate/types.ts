@@ -88,6 +88,16 @@ export type SubstrateEvent =
       data: { agent: AgentId; file_id: string; held_by: AgentId };
     }
   | { type: "artifact.reference"; data: { wc_id: string; artifact_id: string } }
+  | {
+      type: "resolver.decided";
+      data: {
+        action: "DROP" | "WRITE";
+        scope: string;
+        rationale: string;
+        new_id?: string;
+        supersede_ids?: string[];
+      };
+    }
   | { type: string; data: unknown };
 
 export interface ActivityEntry {

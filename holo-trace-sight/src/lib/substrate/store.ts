@@ -298,6 +298,43 @@ export const useSubstrate = create<SubstrateStore>((set, get) => ({
         });
         return;
       }
+      case "resolver.decided": {
+        // The Resolver Agent (BP1) — adjudicates writes server-side and
+        // emits this event with its rationale + the action it took. Append
+        // a row to the activity stream so judges can see why a note was
+        // dropped or why a supersede happened.
+        const d = e.data as {
+          action: "DROP" | "WRITE";
+          scope: string;
+          rationale: string;
+          new_id?: string;
+          supersede_ids?: string[];
+        };
+        const supersedeCount = d.supersede_ids?.length ?? 0;
+        const action =
+          d.action === "DROP"
+            ? "resolver dropped"
+            : supersedeCount > 0
+              ? `resolver wrote +superseded ${supersedeCount}`
+              : "resolver wrote";
+        const nodeIds = [
+          d.scope,
+          ...(d.supersede_ids ?? []),
+          ...(d.new_id ? [d.new_id] : []),
+        ].filter(Boolean) as string[];
+        set({
+          activity: pushActivity(state.activity, {
+            id,
+            ts: now,
+            agent: "resolver",
+            action,
+            scope: d.scope,
+            summary: d.rationale,
+            nodeIds,
+          }),
+        });
+        return;
+      }
       default:
         return;
     }
