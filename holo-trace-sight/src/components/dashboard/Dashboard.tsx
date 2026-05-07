@@ -63,18 +63,21 @@ export function Dashboard() {
   return (
     <div className="flex h-screen flex-col bg-paper text-ink">
       <Header mode={mode} onToggleMode={() => setMode(mode === "mock" ? "live" : "mock")} />
-      <main className="relative flex-1">
-        {hasAnyData && <GraphCanvas />}
-        {mode === "mock" && (
-          <div className="pointer-events-none absolute right-6 top-4 z-10 font-display text-[12px] italic font-semibold tracking-wide text-ink-dim">
-            <span className="mr-2 inline-block h-1.5 w-1.5 bg-primary align-middle" />
-            scripted demo
-          </div>
-        )}
-        {/* Prompt panel only useful when there's a real backend to send to */}
-        <PromptPanel disabled={mode === "mock"} />
-      </main>
-      <ActivityStream />
+      {/* Activity stream becomes a right-side panel — matches Mohammed's layout */}
+      <div className="flex flex-1 overflow-hidden">
+        <main className="relative flex-1">
+          {hasAnyData && <GraphCanvas />}
+          {mode === "mock" && (
+            <div className="pointer-events-none absolute right-6 top-4 z-10 font-display text-[12px] italic font-semibold tracking-wide text-ink-dim">
+              <span className="mr-2 inline-block h-1.5 w-1.5 bg-primary align-middle" />
+              scripted demo
+            </div>
+          )}
+          {/* Prompt panel only useful when there's a real backend to send to */}
+          <PromptPanel disabled={mode === "mock"} />
+        </main>
+        <ActivityStream />
+      </div>
     </div>
   );
 }
