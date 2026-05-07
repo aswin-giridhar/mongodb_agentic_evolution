@@ -41,6 +41,18 @@ export type ConflictBadge = {
 
 const MAX_RECENT_EVENTS = 50;
 
+/** Resolver Agent (BP1) presence state for the header indicator. */
+export type ResolverState = {
+  /** Total decisions seen since connect. */
+  decisionCount: number;
+  /** Timestamp of the most recent decision (drives the pulse). */
+  lastDecisionAt: number | null;
+  /** One-line rationale from the most recent decision, shown on hover. */
+  lastRationale: string | null;
+  /** Action of the most recent decision — "DROP" | "WRITE" | null. */
+  lastAction: "DROP" | "WRITE" | null;
+};
+
 export type SubstrateState = {
   services: Record<EntityId, Service>;
   people: Record<EntityId, Person>;
@@ -54,11 +66,15 @@ export type SubstrateState = {
   viewMode: ViewMode;
   userOverrodeView: boolean;
   seeded: boolean;
+  resolver: ResolverState;
 
   applyEvent: (event: SubstrateEvent) => void;
   setViewMode: (mode: ViewMode, isUserAction: boolean) => void;
   highlightEntities: (ids: string[]) => void;
   clearHighlights: () => void;
+  /** Wipes the activity-stream event list only — does not touch working
+   *  context, claims, the graph, or the resolver state. */
+  clearActivityStream: () => void;
   resetForReplay: () => void;
 };
 
@@ -77,6 +93,12 @@ export const useStore = create<SubstrateState>((set, get) => ({
   viewMode: "structure",
   userOverrodeView: false,
   seeded: false,
+  resolver: {
+    decisionCount: 0,
+    lastDecisionAt: null,
+    lastRationale: null,
+    lastAction: null,
+  },
 
   applyEvent: (event) => {
     const state = get();
@@ -311,6 +333,23 @@ export const useStore = create<SubstrateState>((set, get) => ({
         });
         return;
       }
+
+      case "resolver.decided": {
+        // Update both the activity stream AND the persistent Resolver Agent
+        // presence indicator in the header. The pulse animation is driven
+        // off `lastDecisionAt` — the Header component compares against
+        // Date.now() to decide whether to show the active state.
+        set({
+          recentEvents: appendEvent(state.recentEvents, event, now),
+          resolver: {
+            decisionCount: state.resolver.decisionCount + 1,
+            lastDecisionAt: now,
+            lastRationale: event.rationale,
+            lastAction: event.action,
+          },
+        });
+        return;
+      }
     }
   },
 
@@ -340,6 +379,10 @@ export const useStore = create<SubstrateState>((set, get) => ({
     set({ highlightedEntityIds: new Set() });
   },
 
+  clearActivityStream: () => {
+    set({ recentEvents: [] });
+  },
+
   resetForReplay: () => {
     set({
       workingContext: {},
@@ -348,6 +391,12 @@ export const useStore = create<SubstrateState>((set, get) => ({
       recentlyCreatedWcIds: new Set(),
       highlightedEntityIds: new Set(),
       viewMode: get().userOverrodeView ? get().viewMode : "structure",
+      resolver: {
+        decisionCount: 0,
+        lastDecisionAt: null,
+        lastRationale: null,
+        lastAction: null,
+      },
     });
   },
 }));

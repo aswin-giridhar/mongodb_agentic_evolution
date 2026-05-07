@@ -89,6 +89,14 @@ export type SubstrateEvent =
       returned_entry_ids: string[];
       returned_artifact_ids: string[];
     }
-  | { kind: "agent.thought"; agent: AgentRole; text: string };
+  | { kind: "agent.thought"; agent: AgentRole; text: string }
+  | {
+      kind: "resolver.decided";
+      action: "DROP" | "WRITE";
+      scope: EntityId;
+      rationale: string;
+      supersede_ids: string[];
+      new_id: string | null;
+    };
 
 export type ViewMode = "structure" | "activity" | "grounded";

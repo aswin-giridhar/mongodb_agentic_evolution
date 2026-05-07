@@ -13,28 +13,27 @@ export interface RetrievalResult {
 }
 
 /**
- * The MongoDB story for the pitch.
+ * The single architectural symmetry point between read and write paths.
  *
- * 1. Walk dependency graph 1 hop from the seed entity (`$graphLookup` both ways)
- * 2. Vector-search `working_context` filtered to the entity set
- * 3. In parallel, vector-search `artifacts` for grounding (same scope)
- * 4. Rerank in JS: working_context > artifacts; recent supersedes win
+ * Returns the 1-hop neighborhood of `seedEntity`: { self ∪ depends_on ∪ consumed_by }.
+ * Files inherit their service for traversal (FileId → service prefix).
+ *
+ * Used by:
+ *  - `retrieve()` here (read pipeline)
+ *  - `writeContext()` in mcp/tools.ts (write-side compaction; BP1)
+ *
+ * Future BP3 work (dynamic depth, multi-seed) lands here.
  */
-export async function retrieve(
-  seedEntity: EntityId | FileId,
-  queryEmbedding: number[],
-  opts: { limit?: number; numCandidates?: number } = {}
-): Promise<RetrievalResult> {
-  const limit = opts.limit ?? 5
-  const numCandidates = opts.numCandidates ?? 100
-  const { services, workingContext, artifacts } = collections()
+export async function getNeighborhood(
+  seedEntity: EntityId | FileId
+): Promise<EntityId[]> {
+  const { services } = collections()
 
   // Files inherit their service for graph traversal
   const seedService = seedEntity.includes("/")
     ? seedEntity.split("/")[0]
     : seedEntity
 
-  // 1. Resolve neighbour set via $graphLookup
   const [neighbourDoc] = await services
     .aggregate([
       { $match: { _id: seedService } },
@@ -72,7 +71,67 @@ export async function retrieve(
     ])
     .toArray()
 
-  const resolved_entities: EntityId[] = neighbourDoc?.entitySet ?? [seedService]
+  return (neighbourDoc?.entitySet ?? [seedService]) as EntityId[]
+}
+
+/**
+ * Vector-search `working_context` for top-k candidates within a neighborhood,
+ * `active: true` only. Used by the Curator to find supersede/redundancy candidates
+ * at write time. Embedding is stripped from results.
+ *
+ * Note: this is the *exact* filter shape used by `retrieve()` below. Same
+ * neighborhood, same active filter, same vector index. The compaction scope
+ * therefore equals the retrieval scope by construction — two notes are
+ * co-compactable iff they're co-retrievable.
+ */
+export async function searchCandidates(
+  neighborhood: EntityId[],
+  embedding: number[],
+  opts: { limit?: number; numCandidates?: number } = {}
+): Promise<WorkingContextEntry[]> {
+  const limit = opts.limit ?? 5
+  const numCandidates = opts.numCandidates ?? 50
+  const { workingContext } = collections()
+  return workingContext
+    .aggregate<WorkingContextEntry>([
+      {
+        $vectorSearch: {
+          index: "wc_vector",
+          queryVector: embedding,
+          path: "embedding",
+          numCandidates,
+          limit,
+          filter: {
+            "scope.entity_id": { $in: neighborhood },
+            active: true,
+          },
+        },
+      },
+      { $project: { embedding: 0 } },
+    ])
+    .toArray()
+}
+
+/**
+ * The MongoDB story for the pitch.
+ *
+ * 1. Walk dependency graph 1 hop from the seed entity (`$graphLookup` both ways)
+ * 2. Vector-search `working_context` filtered to the entity set
+ * 3. In parallel, vector-search `artifacts` for grounding (same scope)
+ * 4. Rerank in JS: working_context > artifacts; recent supersedes win
+ */
+export async function retrieve(
+  seedEntity: EntityId | FileId,
+  queryEmbedding: number[],
+  opts: { limit?: number; numCandidates?: number } = {}
+): Promise<RetrievalResult> {
+  const limit = opts.limit ?? 5
+  const numCandidates = opts.numCandidates ?? 100
+  const { workingContext, artifacts } = collections()
+
+  // 1. Resolve neighbour set via $graphLookup (shared helper — also used by
+  //    the Curator at write time so compaction scope equals retrieval scope).
+  const resolved_entities = await getNeighborhood(seedEntity)
 
   // 2. + 3. Parallel vector searches.
   // $project drops the 1024-dim embedding array — agents don't need it

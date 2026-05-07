@@ -5,24 +5,42 @@ import { useStore } from "@/lib/store";
 import type { RecentEvent } from "@/lib/store";
 import type { SubstrateEvent } from "@/types";
 
+// Three actors now share the activity stream: producer (purple), consumer
+// (green), and the Resolver Agent (yellow, BP1). The Resolver is not an
+// AgentRole in the typed event union — it appears only via `resolver.decided`
+// events — so we widen the palette key from AgentRole to a string-union type.
 const AGENT_COLOR = {
-  producer: { dot: "bg-indigo-400", text: "text-indigo-300" },
+  producer: { dot: "bg-purple-400", text: "text-purple-300" },
   consumer: { dot: "bg-emerald-400", text: "text-emerald-300" },
+  resolver: { dot: "bg-yellow-400", text: "text-yellow-300" },
 } as const;
+type ActorKey = keyof typeof AGENT_COLOR;
 
 export const ActivityStream = () => {
   const events = useStore((s) => s.recentEvents);
   const highlightEntities = useStore((s) => s.highlightEntities);
+  const clearActivityStream = useStore((s) => s.clearActivityStream);
 
   return (
-    <div className="flex h-full flex-col border-t border-slate-800/80 bg-slate-950/95">
+    <div className="flex h-full flex-col border-l border-slate-800/80 bg-slate-950/95">
       <div className="flex items-center justify-between border-b border-slate-800/60 px-5 py-2">
         <span className="font-mono text-[11px] font-semibold uppercase tracking-widest text-slate-400">
           Activity stream
         </span>
-        <span className="font-mono text-[10px] text-slate-600">
-          {events.length} events
-        </span>
+        <div className="flex items-center gap-3 pr-8">
+          <span className="font-mono text-[10px] text-slate-600">
+            {events.length} {events.length === 1 ? "event" : "events"}
+          </span>
+          <button
+            type="button"
+            onClick={clearActivityStream}
+            disabled={events.length === 0}
+            title="Clear the activity stream (does not reset the demo state)"
+            className="font-mono text-[10px] uppercase tracking-wider text-slate-500 transition hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-slate-500"
+          >
+            clear
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto">
         <ul className="divide-y divide-slate-900/80">
@@ -85,7 +103,10 @@ const ActivityRow = ({ entry, onHighlight }: RowProps) => {
                 )}
                 <RelTime ts={entry.timestamp} />
               </span>
-              <span className="block truncate font-mono text-[12px] text-slate-200">
+              <span
+                title={detail.summary}
+                className="block font-mono text-[12px] leading-snug text-slate-200 line-clamp-3"
+              >
                 {detail.summary}
               </span>
             </>
@@ -116,7 +137,7 @@ const RelTime = ({ ts }: { ts: number }) => {
 type EventDetail = {
   action: string;
   summary: string;
-  agent?: "producer" | "consumer";
+  agent?: ActorKey;
   scope?: string;
   highlightIds?: string[];
 };
@@ -190,6 +211,32 @@ const describeEvent = (event: SubstrateEvent): EventDetail => {
           ...event.returned_artifact_ids,
         ],
       };
+    case "resolver.decided": {
+      // Three labels by Resolver Agent action shape:
+      //   DROP                                  → "dropped redundant note"
+      //   WRITE with empty supersede_ids        → "wrote note"
+      //   WRITE with non-empty supersede_ids    → "merged & retired N notes"
+      let action: string;
+      if (event.action === "DROP") {
+        action = "dropped redundant note";
+      } else if (event.supersede_ids.length > 0) {
+        const n = event.supersede_ids.length;
+        action = `merged · retired ${n} note${n === 1 ? "" : "s"}`;
+      } else {
+        action = "wrote note";
+      }
+      return {
+        action,
+        summary: event.rationale,
+        agent: "resolver",
+        scope: shortScope(event.scope),
+        highlightIds: [
+          event.scope,
+          ...(event.new_id ? [event.new_id] : []),
+          ...event.supersede_ids,
+        ],
+      };
+    }
     default:
       return { action: "event", summary: "" };
   }

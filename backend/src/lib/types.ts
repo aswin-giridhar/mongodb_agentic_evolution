@@ -55,11 +55,39 @@ export interface WorkingContextEntry {
   scope: { entity_id: EntityId | FileId }
   content: string
   embedding: number[]
-  supersedes: string | null
+  /**
+   * IDs of older entries that this one replaces. n→1 supersedes are supported:
+   * a single new note can retire multiple older ones (e.g., a finalized decision
+   * superseding three "exploring options" notes). Empty array = independent note.
+   * Set by the Curator (resolver.adjudicate); never by callers.
+   */
+  supersedes: string[]
+  /** ID of the newer entry that retired this one, if any. Each old note is
+   *  replaced by exactly one new note, so this stays scalar. */
   superseded_by: string | null
   refs: string[]
   active: boolean
   created_at: number
+}
+
+// ---------- Resolver Agent (resolver.adjudicate) ----------
+
+/**
+ * Decision returned by the Resolver Agent when adjudicating a write.
+ *
+ * - `DROP`  → new note is fully redundant; do not write.
+ * - `WRITE` → insert `content` (Resolver-authored, may be raw passthrough or a
+ *             merged synthesis). If `supersede_ids` is non-empty, those entries
+ *             are flipped `active: false` and gain `superseded_by` pointing to
+ *             the new note.
+ *
+ * `rationale` is non-optional; it's how supersede decisions get audited.
+ */
+export interface ResolverDecision {
+  action: "DROP" | "WRITE"
+  supersede_ids: string[]
+  content: string
+  rationale: string
 }
 
 // ---------- External (FE-shaped) types ----------
@@ -90,7 +118,7 @@ export interface WorkingContextEntryFE {
   author: Agent
   scope: { entity_id: EntityId | FileId }
   content: string
-  supersedes: string | null
+  supersedes: string[]
   superseded_by: string | null
   refs: string[]
   active: boolean
@@ -145,6 +173,18 @@ export type SSEEvent =
       }
     }
   | { type: "agent.thought"; payload: { agent: Agent; text: string } }
+  | {
+      type: "resolver.decided"
+      payload: {
+        action: "DROP" | "WRITE"
+        scope: EntityId | FileId
+        rationale: string
+        /** Old entries retired by this decision; empty for DROP and plain INSERT. */
+        supersede_ids: string[]
+        /** ID of the new entry written; null for DROP. */
+        new_id: string | null
+      }
+    }
   | { type: "ping"; payload: Record<string, never> }
 
 // ---------- Helpers ----------
@@ -176,13 +216,21 @@ export function toFEArtifact(a: Artifact): ArtifactFE | null {
 }
 
 export function toFEWorkingContext(e: WorkingContextEntry): WorkingContextEntryFE {
+  // Defensively normalize supersedes for back-compat with any pre-BP1 docs that
+  // may still hold a scalar string or null in the DB.
+  const raw = e.supersedes as unknown
+  const supersedes: string[] = Array.isArray(raw)
+    ? raw
+    : typeof raw === "string"
+      ? [raw]
+      : []
   return {
     _id: e._id,
     type: e.type,
     author: e.author,
     scope: e.scope,
     content: e.content,
-    supersedes: e.supersedes,
+    supersedes,
     superseded_by: e.superseded_by,
     refs: e.refs,
     active: e.active,

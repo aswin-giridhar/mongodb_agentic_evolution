@@ -41,7 +41,7 @@ const TYPE_STYLES: Record<
 };
 
 const AGENT_DOT: Record<"producer" | "consumer", string> = {
-  producer: "bg-indigo-400",
+  producer: "bg-purple-400",
   consumer: "bg-emerald-400",
 };
 

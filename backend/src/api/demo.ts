@@ -99,13 +99,15 @@ async function runScenario(reset: boolean): Promise<void> {
   )
   await sleep(1500)
 
-  // 5. Producer supersedes with the lib/limiter decision (Hero 2)
+  // 5. Producer writes the lib/limiter decision (Hero 2).
+  //    No explicit `supersedes` — the Resolver Agent (BP1) detects the contradiction
+  //    with step 3's express-rate-limit decision and retires it automatically.
+  //    If Bedrock is unreachable, this falls back to a plain create.
   await writeContext(
     {
       type: "decision",
       content:
         "use lib/limiter (redis-backed) on payments-api /checkout — per Marcus's #platform thread",
-      supersedes: initialDecision.id,
       refs: ["slack:marcus-rate-limit-warning", "pr:1247"],
     },
     "producer"
@@ -131,6 +133,7 @@ async function runScenario(reset: boolean): Promise<void> {
     "consumer"
   )
 
-  // Use draft id so unused-var warnings don't fire
+  // Use unused vars so warnings don't fire
   void draft
+  void initialDecision
 }

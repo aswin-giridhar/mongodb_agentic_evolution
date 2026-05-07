@@ -12,8 +12,8 @@ import type {
   WorkingContextEntry,
   WorkingContextType,
 } from "../lib/types.js"
-import { resolveEntity } from "./resolver.js"
-import { retrieve } from "../db/retrieval.js"
+import { adjudicate, resolveEntity } from "./resolver.js"
+import { getNeighborhood, retrieve, searchCandidates } from "../db/retrieval.js"
 
 // ---------- Tool input schemas ----------
 
@@ -33,6 +33,11 @@ export const ReadContextInput = z.object({
 export const WriteContextInput = z.object({
   type: WorkingContextTypeSchema,
   content: z.string().min(1),
+  /**
+   * @deprecated since BP1 — supersedes is now decided by the Resolver Agent
+   * (resolver.adjudicate) at write time. Field is accepted for MCP
+   * back-compat but ignored. Agents should not set this.
+   */
   supersedes: z.string().optional(),
   refs: z.array(z.string()).optional(),
 })
@@ -90,7 +95,13 @@ interface WriteWcArgs {
   content: string
   agent: Agent
   scopeOverride?: EntityId | FileId
-  supersedes?: string
+  supersedes?: string[]
+  /** Pre-computed embedding (Resolver Agent pipeline reuses the embedding it computed
+   *  for candidate search; avoids a second Voyage round-trip). */
+  embedding?: number[]
+  /** Pre-resolved entity (Resolver Agent pipeline resolves once for both neighborhood
+   *  walk and the final write). */
+  entityIdOverride?: EntityId | FileId
   refs?: string[]
   /** Skip Bedrock entity resolution (used by claim() which always knows scope). */
   skipResolve?: boolean
@@ -101,9 +112,10 @@ async function writeWcEntry(
 ): Promise<WorkingContextEntry> {
   const { workingContext } = collections()
   const entityId =
+    args.entityIdOverride ??
     args.scopeOverride ??
     (args.skipResolve ? "services.unknown" : await resolveEntity(args.content))
-  const embedding = await embedOne(args.content)
+  const embedding = args.embedding ?? (await embedOne(args.content))
   const now = Date.now()
   const id = `wc_${randomUUID().slice(0, 8)}`
 
@@ -114,7 +126,7 @@ async function writeWcEntry(
     scope: { entity_id: entityId },
     content: args.content,
     embedding,
-    supersedes: args.supersedes ?? null,
+    supersedes: args.supersedes ?? [],
     superseded_by: null,
     refs: args.refs ?? [],
     active: true,
@@ -124,48 +136,145 @@ async function writeWcEntry(
   return doc
 }
 
+/**
+ * Write a working-context entry through the BP1 Resolver Agent pipeline.
+ *
+ *   resolveEntity → embed → getNeighborhood → searchCandidates →
+ *   adjudicate → applyDecision (DROP | WRITE±supersede)
+ *
+ * Returns:
+ *   { id }                     — for plain WRITE (no supersede)
+ *   { id, supersede_ids }      — for WRITE with supersedes
+ *   { dropped: true, ... }     — when Resolver Agent decided redundant
+ */
+export interface WriteContextResult {
+  /** ID of the new entry, or null if the write was dropped as redundant. */
+  id: string | null
+  /** True when the Resolver Agent decided the new note added no information. */
+  dropped?: boolean
+  /** Old entries retired by this write, if any. */
+  supersede_ids?: string[]
+  /** Human-readable Resolver Agent rationale, exposed for audit / demo visibility. */
+  rationale?: string
+}
+
 export async function writeContext(
   input: z.infer<typeof WriteContextInput>,
   agent: Agent
-): Promise<{ id: string }> {
+): Promise<WriteContextResult> {
   const { workingContext } = collections()
 
-  // Supersede flow: mark the old entry inactive and emit the merged event.
+  // Note: input.supersedes is deprecated and ignored — the Resolver Agent decides.
+  // Logged once if a caller still passes it, then ignored.
   if (input.supersedes) {
-    const newDoc = await writeWcEntry({
-      type: input.type as WorkingContextType,
-      content: input.content,
-      agent,
-      supersedes: input.supersedes,
-      refs: input.refs,
-    })
-    await workingContext.updateOne(
-      { _id: input.supersedes },
-      { $set: { active: false, superseded_by: newDoc._id } }
+    console.warn(
+      "[writeContext] caller-provided 'supersedes' is ignored under BP1; the Resolver Agent decides at write time."
     )
-    eventBus.emitEvent({
-      type: "working_context.superseded",
-      payload: {
-        old_id: input.supersedes,
-        new_entry: toFEWorkingContext(newDoc),
-      },
-    })
-    return { id: newDoc._id }
   }
 
-  // Plain create.
+  // 1. Resolve seed entity (single resolution shared with the Resolver Agent pipeline).
+  const entityId = await resolveEntity(input.content)
+
+  // 2. Embed the new content (single embed shared with candidate search & write).
+  const embedding = await embedOne(input.content)
+
+  // 3. Walk the 1-hop neighborhood of the seed.
+  //    Compaction scope = retrieval scope (see retrieval.ts: getNeighborhood).
+  const neighborhood = await getNeighborhood(entityId)
+
+  // 4. Vector-search the neighborhood for top-k active candidates.
+  const candidates = await searchCandidates(neighborhood, embedding, { limit: 5 })
+
+  // 5. Resolver Agent adjudicates the write. Fail-open: any error → plain WRITE.
+  const decision = await adjudicate(input.content, candidates)
+
+  // 6. Apply the decision.
+  if (decision.action === "DROP") {
+    // No DB writes. Surface the rationale for demo visibility.
+    console.info(
+      `[writeContext] Resolver Agent DROP — ${decision.rationale} (no candidates retired)`
+    )
+    eventBus.emitEvent({
+      type: "resolver.decided",
+      payload: {
+        action: "DROP",
+        scope: entityId,
+        rationale: decision.rationale,
+        supersede_ids: [],
+        new_id: null,
+      },
+    })
+    return {
+      id: null,
+      dropped: true,
+      rationale: decision.rationale,
+    }
+  }
+
+  // action === "WRITE". Insert first, then flip supersede_ids inactive.
+  // Insert-before-flip is intentional: a flip-then-insert failure would lose
+  // context, while an insert-then-flip failure leaves a transient duplicate
+  // that the next neighborhood-touching write will compact.
   const newDoc = await writeWcEntry({
     type: input.type as WorkingContextType,
-    content: input.content,
+    content: decision.content,
     agent,
+    entityIdOverride: entityId,
+    embedding,
+    supersedes: decision.supersede_ids,
     refs: input.refs,
   })
+
+  if (decision.supersede_ids.length > 0) {
+    await workingContext.updateMany(
+      { _id: { $in: decision.supersede_ids } },
+      { $set: { active: false, superseded_by: newDoc._id } }
+    )
+    // Emit one superseded event per retired note — preserves the existing
+    // per-old_id event shape; the FE doesn't need to know it was a batch.
+    for (const oldId of decision.supersede_ids) {
+      eventBus.emitEvent({
+        type: "working_context.superseded",
+        payload: {
+          old_id: oldId,
+          new_entry: toFEWorkingContext(newDoc),
+        },
+      })
+    }
+    eventBus.emitEvent({
+      type: "resolver.decided",
+      payload: {
+        action: "WRITE",
+        scope: entityId,
+        rationale: decision.rationale,
+        supersede_ids: decision.supersede_ids,
+        new_id: newDoc._id,
+      },
+    })
+    return {
+      id: newDoc._id,
+      supersede_ids: decision.supersede_ids,
+      rationale: decision.rationale,
+    }
+  }
+
+  // Plain create — no supersedes.
   eventBus.emitEvent({
     type:
       newDoc.type === "claim" ? "claim.activated" : "working_context.created",
     payload: { entry: toFEWorkingContext(newDoc) },
   })
-  return { id: newDoc._id }
+  eventBus.emitEvent({
+    type: "resolver.decided",
+    payload: {
+      action: "WRITE",
+      scope: entityId,
+      rationale: decision.rationale,
+      supersede_ids: [],
+      new_id: newDoc._id,
+    },
+  })
+  return { id: newDoc._id, rationale: decision.rationale }
 }
 
 export async function claim(

@@ -42,6 +42,7 @@ export class SseEventSource implements EventSourceAdapter {
       "read_context.started",
       "read_context.completed",
       "agent.thought",
+      "resolver.decided",
     ];
     kinds.forEach((kind) => es.addEventListener(kind, bind(kind)));
 
