@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Header } from "./Header";
 import { GraphCanvas } from "./GraphCanvas";
 import { ActivityStream } from "./ActivityStream";
+import { PromptPanel } from "./PromptPanel";
 import { useSubstrate } from "@/lib/substrate/store";
 import { API_BASE_URL, fetchSeed, startSSE } from "@/lib/substrate/sse";
 import { MOCK_SEED, startMock } from "@/lib/substrate/mock";
@@ -70,6 +71,8 @@ export function Dashboard() {
             scripted demo
           </div>
         )}
+        {/* Prompt panel only useful when there's a real backend to send to */}
+        <PromptPanel disabled={mode === "mock"} />
       </main>
       <ActivityStream />
     </div>

@@ -7,7 +7,11 @@ import { connect, disconnect } from "./db/client.js"
 import { env } from "./lib/env.js"
 import { getSeed } from "./api/seed.js"
 import { streamHandler } from "./api/stream.js"
-import { resetHandler, runScenarioHandler } from "./api/demo.js"
+import {
+  agentPromptHandler,
+  resetHandler,
+  runScenarioHandler,
+} from "./api/demo.js"
 import { buildMcpServer } from "./mcp/server.js"
 import { preWarmCatalogue } from "./mcp/resolver.js"
 import type { Agent } from "./lib/types.js"
@@ -57,6 +61,16 @@ async function main(): Promise<void> {
       await runScenarioHandler(req, res)
     } catch (err) {
       console.error("/api/demo/run-scenario failed:", err)
+      if (!res.headersSent) {
+        res.status(500).json({ error: String(err) })
+      }
+    }
+  })
+  app.post("/api/demo/agent-prompt", express.json(), async (req, res) => {
+    try {
+      await agentPromptHandler(req, res)
+    } catch (err) {
+      console.error("/api/demo/agent-prompt failed:", err)
       if (!res.headersSent) {
         res.status(500).json({ error: String(err) })
       }
