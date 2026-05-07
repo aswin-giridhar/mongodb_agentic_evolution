@@ -22,13 +22,13 @@ export const ActivityStream = () => {
   const clearActivityStream = useStore((s) => s.clearActivityStream);
 
   return (
-    <div className="flex h-full flex-col border-l border-slate-800/80 bg-slate-950/95">
-      <div className="flex items-center justify-between border-b border-slate-800/60 px-5 py-2">
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+    <div className="flex h-full flex-col border-l border-white/15 bg-black/60 backdrop-blur-xl">
+      <div className="flex items-center justify-between border-b border-white/10 px-5 py-2">
+        <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
           Activity stream
         </span>
         <div className="flex items-center gap-3 pr-8">
-          <span className="font-mono text-[10px] text-slate-600">
+          <span className="font-mono text-[10px] text-white/30">
             {events.length} {events.length === 1 ? "event" : "events"}
           </span>
           <button
@@ -36,14 +36,14 @@ export const ActivityStream = () => {
             onClick={clearActivityStream}
             disabled={events.length === 0}
             title="Clear the activity stream (does not reset the demo state)"
-            className="font-mono text-[10px] uppercase tracking-wider text-slate-500 transition hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-slate-500"
+            className="font-mono text-[10px] uppercase tracking-wider text-white/40 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-white/40"
           >
             clear
           </button>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto">
-        <ul className="divide-y divide-slate-900/80">
+        <ul className="divide-y divide-white/[0.04]">
           {events.map((entry) => (
             <ActivityRow
               key={entry.id}
@@ -72,7 +72,7 @@ const ActivityRow = ({ entry, onHighlight }: RowProps) => {
   return (
     <li
       onClick={() => ids.length > 0 && onHighlight(ids)}
-      className={`group cursor-pointer px-5 py-2 transition hover:bg-slate-900/40 ${
+      className={`group cursor-pointer px-5 py-2.5 transition hover:bg-white/[0.03] ${
         isThought ? "pl-12" : ""
       }`}
     >
@@ -82,22 +82,22 @@ const ActivityRow = ({ entry, onHighlight }: RowProps) => {
             className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${palette.dot}`}
           />
         )}
-        {!palette && <span className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-slate-600" />}
+        {!palette && <span className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-white/30" />}
         <div className="flex-1 min-w-0">
           {isThought ? (
-            <span className="font-mono text-[12px] italic text-slate-400">
+            <span className="font-sans text-[12px] italic text-white/50">
               {detail.summary}
             </span>
           ) : (
             <>
               <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <span
-                  className={`font-mono text-[10px] font-bold uppercase tracking-wider ${palette?.text ?? "text-slate-400"}`}
+                  className={`font-mono text-[10px] font-semibold uppercase tracking-wider ${palette?.text ?? "text-white/55"}`}
                 >
                   {detail.action}
                 </span>
                 {detail.scope && (
-                  <span className="rounded-sm bg-slate-800/80 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">
+                  <span className="rounded-sm border border-white/[0.06] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-white/70">
                     {detail.scope}
                   </span>
                 )}
@@ -105,7 +105,7 @@ const ActivityRow = ({ entry, onHighlight }: RowProps) => {
               </span>
               <span
                 title={detail.summary}
-                className="block font-mono text-[12px] leading-snug text-slate-200 line-clamp-3"
+                className="block font-sans text-[13px] leading-snug text-white/85 line-clamp-3"
               >
                 {detail.summary}
               </span>
@@ -130,7 +130,7 @@ const RelTime = ({ ts }: { ts: number }) => {
   else if (diff < 3600) label = `${Math.floor(diff / 60)}m ago`;
   else label = `${Math.floor(diff / 3600)}h ago`;
   return (
-    <span className="font-mono text-[10px] text-slate-500">{label}</span>
+    <span className="font-mono text-[10px] text-white/40">{label}</span>
   );
 };
 

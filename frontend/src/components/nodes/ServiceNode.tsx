@@ -5,9 +5,9 @@ import type { Service } from "@/types";
 import { useStore } from "@/lib/store";
 
 const TEAM_COLORS: Record<string, { bg: string; tag: string }> = {
-  platform: { bg: "bg-slate-900", tag: "text-cyan-400" },
-  mobile: { bg: "bg-slate-900", tag: "text-amber-400" },
-  growth: { bg: "bg-slate-900", tag: "text-fuchsia-400" },
+  platform: { bg: "bg-white/[0.03]", tag: "text-cyan-300/80" },
+  mobile: { bg: "bg-white/[0.03]", tag: "text-amber-300/80" },
+  growth: { bg: "bg-white/[0.03]", tag: "text-fuchsia-300/80" },
 };
 
 type Props = {
@@ -23,15 +23,15 @@ export const ServiceNode = ({ data }: Props) => {
 
   return (
     <div
-      className={`relative rounded-2xl border ${palette.bg} backdrop-blur-sm transition-all duration-300`}
+      className={`relative rounded-2xl border ${palette.bg} backdrop-blur-xl transition-all duration-300`}
       style={{
         width: 180,
         height: 80,
-        borderColor: highlighted ? "#fbbf24" : "rgba(148, 163, 184, 0.4)",
-        borderWidth: highlighted ? 2 : 1.5,
+        borderColor: highlighted ? "#fbbf24" : "rgba(255, 255, 255, 0.7)",
+        borderWidth: highlighted ? 2 : 1,
         boxShadow: highlighted
-          ? "0 0 0 4px rgba(251, 191, 36, 0.18), 0 8px 32px rgba(0,0,0,0.4)"
-          : "0 4px 24px rgba(0,0,0,0.35)",
+          ? "0 0 0 4px rgba(251, 191, 36, 0.18), 0 8px 32px rgba(0,0,0,0.6)"
+          : "0 4px 24px rgba(0,0,0,0.5)",
       }}
     >
       <Handle type="target" position={Position.Top} className="!opacity-0" />
@@ -40,7 +40,7 @@ export const ServiceNode = ({ data }: Props) => {
       <Handle type="source" position={Position.Right} className="!opacity-0" id="right-source" />
 
       <div className="flex h-full flex-col justify-center px-4">
-        <div className="font-mono text-[15px] font-semibold tracking-tight text-slate-100">
+        <div className="font-sans text-[15px] font-semibold tracking-tight text-white">
           {service.name}
         </div>
         <div className={`text-[11px] uppercase tracking-wider ${palette.tag}`}>
