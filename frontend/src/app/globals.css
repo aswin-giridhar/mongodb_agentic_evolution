@@ -1,19 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --background: #020617;
-  --foreground: #e2e8f0;
+  --background: #000000;
+  --foreground: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  /* --font-sans and --font-mono are injected by next/font (Geist + Geist Mono)
+     in layout.tsx via the html element's class. The fallback stack below
+     applies only if next/font fails to load. */
   --font-mono:
-    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+    var(--font-geist-mono), ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+    Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
-    Arial, sans-serif;
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
   --animate-pulse-pill: pulse-pill 1.5s ease-in-out;
   --animate-shake: shake 0.4s ease-in-out infinite;
   --animate-fade-in: fade-in 0.4s ease-out;
@@ -70,7 +73,7 @@ body {
   }
 }
 
-/* React Flow tweaks */
+/* React Flow tweaks — match the liquid-glass aesthetic */
 .react-flow__attribution {
   display: none !important;
 }
@@ -84,14 +87,23 @@ body {
   transition: stroke 200ms ease;
 }
 
+.react-flow__controls {
+  border-radius: 12px;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
 .react-flow__controls button {
-  background: rgba(15, 23, 42, 0.85) !important;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.6) !important;
-  color: #e2e8f0 !important;
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
 }
 
 .react-flow__controls button:hover {
-  background: rgba(30, 41, 59, 0.95) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #ffffff !important;
 }
 
 .react-flow__controls button svg {

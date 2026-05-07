@@ -4,6 +4,8 @@ import { Handle, Position } from "reactflow";
 import type { WorkingContextEntry } from "@/types";
 import { useStore } from "@/lib/store";
 
+// Each type still carries its accent in the bg tint + label text color.
+// Perimeter is uniform white per the dashboard's monochrome chrome rule.
 const TYPE_STYLES: Record<
   WorkingContextEntry["type"],
   { bg: string; text: string; label: string; ring: string }
@@ -12,31 +14,31 @@ const TYPE_STYLES: Record<
     bg: "bg-blue-500/15",
     text: "text-blue-200",
     label: "schema",
-    ring: "border-blue-400/60",
+    ring: "border-white/70",
   },
   decision: {
     bg: "bg-purple-500/15",
     text: "text-purple-200",
     label: "decision",
-    ring: "border-purple-400/60",
+    ring: "border-white/70",
   },
   claim: {
     bg: "bg-amber-500/15",
     text: "text-amber-200",
     label: "claim",
-    ring: "border-amber-400/60",
+    ring: "border-white/70",
   },
   investigation: {
     bg: "bg-teal-500/15",
     text: "text-teal-200",
     label: "investigation",
-    ring: "border-teal-400/60",
+    ring: "border-white/70",
   },
   open_question: {
     bg: "bg-slate-500/15",
     text: "text-slate-300",
     label: "question",
-    ring: "border-slate-400/60",
+    ring: "border-white/70",
   },
 };
 
@@ -82,7 +84,7 @@ export const WorkingContextPill = ({ data }: Props) => {
       >
         {style.label}
       </span>
-      <span className="truncate text-[11px] text-slate-100/90">
+      <span className="truncate font-sans text-[11px] text-white/90">
         {entry.content}
       </span>
     </div>

@@ -11,9 +11,9 @@ const SOURCE_ICON: Record<string, string> = {
 };
 
 const SOURCE_TINT: Record<string, string> = {
-  slack: "text-emerald-300",
-  github: "text-slate-200",
-  jira: "text-sky-300",
+  slack: "text-emerald-300/85",
+  github: "text-white/85",
+  jira: "text-sky-300/85",
 };
 
 type Props = {
@@ -41,21 +41,21 @@ export const ArtifactNode = ({ data }: Props) => {
       <Handle type="target" position={Position.Top} className="!opacity-0" />
       <Handle type="source" position={Position.Bottom} className="!opacity-0" />
       <div
-        className="absolute inset-0 rotate-45 rounded-md border border-slate-500/60 bg-slate-800/80 transition-all"
+        className="absolute inset-0 rotate-45 rounded-md border bg-white/[0.04] backdrop-blur-xl transition-all"
         style={{
           boxShadow: showFull
-            ? "0 0 0 3px rgba(56, 189, 248, 0.35), 0 4px 20px rgba(0,0,0,0.4)"
-            : "0 2px 12px rgba(0,0,0,0.3)",
+            ? "0 0 0 3px rgba(255, 255, 255, 0.18), 0 4px 20px rgba(0,0,0,0.6)"
+            : "0 2px 12px rgba(0,0,0,0.5)",
           borderColor: showFull
-            ? "rgba(125, 211, 252, 0.7)"
-            : "rgba(100, 116, 139, 0.4)",
+            ? "rgba(255, 255, 255, 0.95)"
+            : "rgba(255, 255, 255, 0.5)",
         }}
       />
       <div className="relative z-10 flex flex-col items-center gap-0.5">
         <span className={`text-lg leading-none ${tint}`}>
           {SOURCE_ICON[artifact.source] ?? "·"}
         </span>
-        <span className="text-[9px] uppercase tracking-wider text-slate-300">
+        <span className="text-[9px] uppercase tracking-wider text-white/65">
           {artifact.source}
         </span>
       </div>

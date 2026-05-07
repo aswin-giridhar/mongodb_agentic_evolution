@@ -81,10 +81,9 @@ export const Graph = () => {
         fitView
         fitViewOptions={{ padding: 0.15, includeHiddenNodes: false }}
       >
-        <Background color="#1e293b" gap={24} size={1} />
+        <Background color="#2a2a2a" gap={24} size={1} />
         <Controls
           showInteractive={false}
-          className="!bg-slate-900/80 !border-slate-700"
         />
       </ReactFlow>
     </div>
@@ -144,8 +143,8 @@ const buildGraph = ({
         target: depId,
         type: "smoothstep",
         animated: false,
-        style: { stroke: "#475569", strokeWidth: 1.5 },
-        markerEnd: { type: MarkerType.ArrowClosed, color: "#475569" },
+        style: { stroke: "rgba(255,255,255,0.7)", strokeWidth: 1.5 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: "rgba(255,255,255,0.7)" },
       });
     });
   });
@@ -189,15 +188,15 @@ const buildGraph = ({
             type: "smoothstep",
             label: "supersedes",
             labelStyle: {
-              fill: "#cbd5e1",
+              fill: "rgba(255,255,255,0.95)",
               fontSize: 10,
               fontWeight: 600,
-              fontFamily: "ui-monospace, monospace",
+              fontFamily: "var(--font-mono)",
             },
-            labelBgStyle: { fill: "#0f172a" },
+            labelBgStyle: { fill: "#000000" },
             labelBgPadding: [4, 4],
-            style: { stroke: "#a78bfa", strokeWidth: 1.5 },
-            markerEnd: { type: MarkerType.ArrowClosed, color: "#a78bfa" },
+            style: { stroke: "rgba(255,255,255,0.85)", strokeWidth: 1.5 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: "rgba(255,255,255,0.85)" },
           });
         }
       });
@@ -239,7 +238,7 @@ const buildGraph = ({
           target: ref,
           type: "straight",
           style: {
-            stroke: "#64748b",
+            stroke: "rgba(255,255,255,0.6)",
             strokeWidth: 1,
             strokeDasharray: "3 4",
           },
@@ -251,7 +250,8 @@ const buildGraph = ({
   // ---- Active retrieval path (animated) ----
   activeRetrievals.forEach((retrieval) => {
     const opacity = retrieval.status === "fading" ? 0.3 : 1;
-    const stroke = retrieval.agent === "producer" ? "#818cf8" : "#34d399";
+    // Match the activity-stream dots: producer = purple-400, consumer = emerald-400
+    const stroke = retrieval.agent === "producer" ? "#c084fc" : "#34d399";
 
     // Path: scope → resolved → traversed nodes → returned entries/artifacts.
     const path: string[] = [];
